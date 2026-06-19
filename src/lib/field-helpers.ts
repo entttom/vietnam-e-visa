@@ -227,6 +227,11 @@ export async function fillAntSelect(inputId: string, label: unknown, { searchabl
       continue;
     }
 
+    // Some selects (e.g. the in-table nationality pickers) populate their option
+    // list lazily; wait for at least one option before collecting so we don't read
+    // an empty list and report a false "option not found".
+    await waitFor(() => dropdown.querySelector('.ant-select-item-option'), 6000);
+
     lastOptions = await collectSelectOptions(dropdown);
     const match = findBestOption(
       lastOptions.map((item) => item.opt),
@@ -364,10 +369,12 @@ export async function fillCheckboxByText(text: string, checked: boolean) {
   await fillCheckbox(checkbox, checked);
 }
 
-function findTableByColumnHeaders(requiredHeaders: string[]) {
+function findTableByColumnHeaders(requiredHeaders: string[], excludedHeaders: string[] = []) {
   for (const wrapper of document.querySelectorAll('.ant-table-wrapper')) {
     const headers = [...wrapper.querySelectorAll('th')].map((th) => th.textContent?.trim() ?? '');
-    if (requiredHeaders.every((text) => headers.some((h) => h.includes(text)))) {
+    const hasRequired = requiredHeaders.every((text) => headers.some((h) => h.includes(text)));
+    const hasExcluded = excludedHeaders.some((text) => headers.some((h) => h.includes(text)));
+    if (hasRequired && !hasExcluded) {
       return wrapper;
     }
   }
@@ -438,6 +445,12 @@ export async function clickPlusVisitRow() {
   await clickPlusTableRow(table, 'Visit history row');
 }
 
+export async function addRowByHeaders(required: string[], excluded: string[], label: string) {
+  const table = findTableByColumnHeaders(required, excluded);
+  if (!table) throw new Error(`${label} table not found`);
+  await clickPlusTableRow(table, label);
+}
+
 export const FieldHelpers = {
   sleep,
   waitFor,
@@ -453,6 +466,7 @@ export const FieldHelpers = {
   findVisitHistoryTable,
   getTableDataRows,
   fillVisitHistoryRow,
+  addRowByHeaders,
   clickPlusChildRow,
   clickPlusVisitRow,
 };

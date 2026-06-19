@@ -73,6 +73,63 @@ async function fillPersonal(data: VisaProfile, result: FillResult) {
   if (p.legal_violation !== undefined) {
     await runStep('legal_violation', () => H.fillRadioByQuestion('Violation of the Vietnamese laws', Boolean(p.legal_violation)), result);
   }
+
+  if (p.used_other_passports && Array.isArray(p.used_passports) && p.used_passports.length) {
+    await fillUsedPassports(p.used_passports as ProfileSection[], result);
+  }
+  if (p.multiple_nationalities && Array.isArray(p.other_nationalities) && p.other_nationalities.length) {
+    await fillOtherNationalities(p.other_nationalities as unknown[], result);
+  }
+}
+
+// Shown when "Have you ever used any other passports..." = Yes.
+// Repeatable table; row fields have stable ids basic_hcKhac_<i>_<field>.
+async function fillUsedPassports(passports: ProfileSection[], result: FillResult) {
+  const H = FieldHelpers;
+  const ready = await H.waitFor(() => document.getElementById('basic_hcKhac_0_soHc'), 5000);
+  if (!ready) {
+    result.errors.push('used_passports: table not found after selecting Yes');
+    return;
+  }
+
+  for (let i = 0; i < passports.length; i += 1) {
+    const pp = passports[i] || {};
+    const prefix = `used_passport_${i + 1}`;
+
+    if (i > 0) {
+      await runStep(`${prefix}_add_row`, () => H.addRowByHeaders(['Passport', 'Full name'], [], 'Used passport'), result);
+      await H.waitFor(() => document.getElementById(`basic_hcKhac_${i}_soHc`), 5000);
+    }
+
+    await runStep(`${prefix}_number`, () => H.fillInput(`basic_hcKhac_${i}_soHc`, pp.number), result);
+    await runStep(`${prefix}_name`, () => H.fillInput(`basic_hcKhac_${i}_hoTen`, pp.full_name), result);
+    await runStep(`${prefix}_dob`, () => H.fillAntDate(`basic_hcKhac_${i}_ngaySinhStr`, pp.date_of_birth), result);
+    // In-table nationality selects do a remote search on type that simulated typing can't
+    // trigger; searchable:false opens the dropdown and picks from the full list instead.
+    await runStep(`${prefix}_nationality`, () => H.fillAntSelect(`basic_hcKhac_${i}_quocTich`, pp.nationality, { searchable: false }), result);
+  }
+}
+
+// Shown when "Do you have multiple nationalities?" = Yes.
+// Repeatable table with a single Nationality select per row (basic_qtKhac_<i>_quocTich).
+async function fillOtherNationalities(nationalities: unknown[], result: FillResult) {
+  const H = FieldHelpers;
+  const ready = await H.waitFor(() => document.getElementById('basic_qtKhac_0_quocTich'), 5000);
+  if (!ready) {
+    result.errors.push('other_nationalities: table not found after selecting Yes');
+    return;
+  }
+
+  for (let i = 0; i < nationalities.length; i += 1) {
+    const prefix = `other_nationality_${i + 1}`;
+    if (i > 0) {
+      // Exclude Passport/Full name so we match the nationality-only table, not the used-passports table.
+      await runStep(`${prefix}_add_row`, () => H.addRowByHeaders(['Nationality'], ['Passport', 'Full name'], 'Other nationality'), result);
+      await H.waitFor(() => document.getElementById(`basic_qtKhac_${i}_quocTich`), 5000);
+    }
+    // searchable:false — see note in fillUsedPassports (remote-search selects need list-pick, not typing).
+    await runStep(prefix, () => H.fillAntSelect(`basic_qtKhac_${i}_quocTich`, nationalities[i], { searchable: false }), result);
+  }
 }
 
 async function fillRequested(data: VisaProfile, result: FillResult) {
@@ -99,6 +156,34 @@ async function fillPassport(data: VisaProfile, result: FillResult) {
   if (p.other_valid_passports !== undefined) {
     await runStep('other_valid_passports', () => H.fillRadioByQuestion('Do you hold any other valid passports', Boolean(p.other_valid_passports)), result);
   }
+
+  if (p.other_valid_passports && Array.isArray(p.other_passports) && p.other_passports.length) {
+    await fillOtherValidPassports(p.other_passports as ProfileSection[], result);
+  }
+}
+
+// Shown when "Do you hold any other valid passports" = Yes.
+// Unlike the other sections this is a single fixed row (no add button), so only one entry is filled.
+async function fillOtherValidPassports(passports: ProfileSection[], result: FillResult) {
+  const H = FieldHelpers;
+  const ready = await H.waitFor(() => document.getElementById('basic_hcConGiaTriKhac_0_so'), 5000);
+  if (!ready) {
+    result.errors.push('other_passports: section not found after selecting Yes');
+    return;
+  }
+  if (passports.length > 1) {
+    result.skipped.push(`other_passports (form accepts one; filled 1 of ${passports.length})`);
+  }
+
+  const pp = passports[0] || {};
+  await runStep('other_passport_type', () => H.fillAntSelect('basic_hcConGiaTriKhac_0_loai', pp.type, { searchable: false }), result);
+  if (pp.specify) {
+    await runStep('other_passport_specify', () => H.fillInput('basic_hcConGiaTriKhac_0_ghiCuThe', pp.specify), result);
+  }
+  await runStep('other_passport_number', () => H.fillInput('basic_hcConGiaTriKhac_0_so', pp.number), result);
+  await runStep('other_passport_authority', () => H.fillInput('basic_hcConGiaTriKhac_0_noiCap', pp.issuing_authority), result);
+  await runStep('other_passport_issue', () => H.fillAntDate('basic_hcConGiaTriKhac_0_ngayCapStr', pp.date_of_issue), result);
+  await runStep('other_passport_expiry', () => H.fillAntDate('basic_hcConGiaTriKhac_0_giaTriDenStr', pp.expiry_date), result);
 }
 
 async function fillContact(data: VisaProfile, result: FillResult) {
@@ -276,11 +361,33 @@ async function fillExpenses(data: VisaProfile, result: FillResult) {
   const H = FieldHelpers;
 
   await runStep('intended_expenses', () => H.fillInput('basic_kpbhDuTinh', e.intended_expenses_usd), result);
+
   if (e.bought_insurance) {
     await runStep('bought_insurance', () => H.fillAntSelect('basic_kpbhMuaBaoHiem', e.bought_insurance, { searchable: false }), result);
+    // Selecting "Yes" reveals a free-text "Specify" field.
+    if (/^yes$/i.test(String(e.bought_insurance)) && e.insurance_specify) {
+      await H.waitFor(() => document.getElementById('basic_kpbhGhiCuThe'), 3000);
+      await runStep('insurance_specify', () => H.fillInput('basic_kpbhGhiCuThe', e.insurance_specify), result);
+    }
   }
+
   if (e.expense_covered_by) {
     await runStep('expense_covered_by', () => H.fillAntSelect('basic_kpbhNguoiDamBao', e.expense_covered_by, { searchable: false }), result);
+
+    // Payment method appears for both Personal and Company.
+    if (e.payment_method) {
+      await H.waitFor(() => document.getElementById('basic_kpbhHinhThuc'), 3000);
+      await runStep('payment_method', () => H.fillAntSelect('basic_kpbhHinhThuc', e.payment_method, { searchable: false }), result);
+    }
+
+    // Company name/address/phone appear only when a company covers the expenses.
+    if (/^company$/i.test(String(e.expense_covered_by))) {
+      const c = (e.cover_company || {}) as ProfileSection;
+      await H.waitFor(() => document.getElementById('basic_kpbhCongTyTen'), 3000);
+      await runStep('cover_company_name', () => H.fillInput('basic_kpbhCongTyTen', c.name), result);
+      await runStep('cover_company_address', () => H.fillInput('basic_kpbhCongTyDiaChi', c.address), result);
+      await runStep('cover_company_phone', () => H.fillInput('basic_kpbhCongTySdt', c.telephone), result);
+    }
   }
 }
 
