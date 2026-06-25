@@ -146,6 +146,7 @@ declarations:
 39. Border gate of exit?
 40. Contact with agency in Vietnam? (yes/no)
 41. Visited Vietnam in the last year? (yes/no)
+    If yes, list each trip within the last 12 months: from date, to date (DD/MM/YYYY), purpose (e.g. Trip)
 42. Relatives currently in Vietnam? (yes/no)
 
 ### Expenses
@@ -164,7 +165,7 @@ export const PROFILE_SETUP_STEPS = [
   },
   {
     title: 'Fill in your details',
-    body: 'Edit the YAML directly in the editor, or use an LLM with the Q&A prompt on the Instructions tab.',
+    body: 'The editor opens with sample John Doe data. Edit the YAML directly, use Reset template for a blank form, or use an LLM with the Q&A prompt on the Instructions tab. Use Add trip to append a visit row at the end of vietnam_visits_last_year.',
   },
   {
     title: 'Save',

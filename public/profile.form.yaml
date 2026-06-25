@@ -83,9 +83,12 @@ trip_information:
 
 # Required when visited_vietnam_last_year is true — one row per trip (DD/MM/YYYY)
 vietnam_visits_last_year: []
-# Example:
-# - from_date: "01/05/2025"
-#   to_date: "15/05/2025"
+# Example (only trips within the last year are filled on the form):
+# - from_date: "15/05/2025"
+#   to_date: "21/06/2025"
+#   purpose: "Trip"
+# - from_date: "30/06/2025"
+#   to_date: "08/10/2025"
 #   purpose: "Trip"
 
 accompanying_children: []
