@@ -63,8 +63,19 @@ trip_information:
   border_gate_exit: "Tan Son Nhat Int Airport (Ho Chi Minh City)"
   temporary_residence_commitment: true
   contact_agency_in_vietnam: false
-  visited_vietnam_last_year: false
+  visited_vietnam_last_year: true
   relatives_in_vietnam: false
+
+vietnam_visits_last_year:
+  - from_date: "15/05/2025"
+    to_date: "21/06/2025"
+    purpose: "Trip"
+  - from_date: "30/06/2025"
+    to_date: "08/10/2025"
+    purpose: "Trip"
+  - from_date: "18/09/2025"
+    to_date: "08/12/2025"
+    purpose: "Trip"
 
 accompanying_children: []
 # Example:

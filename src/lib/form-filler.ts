@@ -1,5 +1,10 @@
 import { VietnamVisaLog } from './logger';
 import { FieldHelpers } from './field-helpers';
+import {
+  filterVisitsWithinLastYear,
+  getProfileReferenceDate,
+  type VietnamVisit,
+} from './visit-history';
 import type { VisaProfile } from './yaml';
 
 const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -262,8 +267,15 @@ async function fillTrip(data: VisaProfile, result: FillResult) {
 }
 
 async function fillVisitHistory(data: VisaProfile, result: FillResult) {
-  const visits = (data.vietnam_visits_last_year || []) as Array<{ from_date?: string; to_date?: string; purpose?: string }>;
+  const allVisits = (data.vietnam_visits_last_year || []) as VietnamVisit[];
+  const refDate = getProfileReferenceDate(data);
+  const visits = filterVisitsWithinLastYear(allVisits, refDate);
   const H = FieldHelpers;
+
+  const excluded = allVisits.length - visits.length;
+  if (excluded > 0) {
+    result.skipped.push(`vietnam_visits_last_year (${excluded} outside last 1 year)`);
+  }
 
   if (!visits.length) {
     result.skipped.push('vietnam_visits_last_year (empty)');

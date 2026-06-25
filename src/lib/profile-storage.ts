@@ -2,13 +2,16 @@ export const STORAGE_KEY_PROFILE_YAML = 'profileYaml';
 export const STORAGE_KEY_ENTRY_DATE = 'lastEntryDate';
 export const STORAGE_KEY_STAY_DAYS = 'profileStayDays';
 
+export const PROFILE_BLANK_TEMPLATE_FILE = 'profile.form.yaml';
+export const PROFILE_EXAMPLE_FILE = 'profile.example.yaml';
+
 export async function loadProfileYaml(): Promise<string> {
   const stored = await chrome.storage.local.get(STORAGE_KEY_PROFILE_YAML);
   if (typeof stored[STORAGE_KEY_PROFILE_YAML] === 'string' && stored[STORAGE_KEY_PROFILE_YAML].trim()) {
     return stored[STORAGE_KEY_PROFILE_YAML];
   }
 
-  const url = chrome.runtime.getURL('profile.form.yaml');
+  const url = chrome.runtime.getURL(PROFILE_EXAMPLE_FILE);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to load profile template (${response.status})`);
