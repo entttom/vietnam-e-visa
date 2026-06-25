@@ -16,6 +16,8 @@ personal_information:
   used_other_passports: false
   multiple_nationalities: false
   legal_violation: false
+  used_passports: []           # fill when used_other_passports is true
+  other_nationalities: []      # fill when multiple_nationalities is true
 
 requested_information:
   entry_type: "single"                 # single | multiple
@@ -29,6 +31,7 @@ passport_information:
   date_of_issue: "01/01/2020"
   expiry_date: "01/01/2030"
   other_valid_passports: false
+  other_passports: []          # fill when other_valid_passports is true
 
 contact_information:
   permanent_address: "123 Example Street, Seoul, Republic of Korea"
@@ -71,8 +74,14 @@ accompanying_children: []
 
 trip_expenses:
   intended_expenses_usd: "2000"
-  bought_insurance: "No"
-  expense_covered_by: "Self"
+  bought_insurance: "No"               # Yes | No
+  insurance_specify: ""                # when bought_insurance is "Yes"
+  expense_covered_by: "Personal"       # Personal | Company
+  payment_method: "Cash"               # Cash | Credit card
+  cover_company:                       # when expense_covered_by is "Company"
+    name: ""
+    address: ""
+    telephone: ""
 
 declarations:
   final_declaration: true

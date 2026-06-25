@@ -16,6 +16,17 @@ personal_information:
   multiple_nationalities: false
   legal_violation: false
 
+  # When used_other_passports is true — one row per previously used passport
+  used_passports: []
+  # - number: "X1234567"
+  #   full_name: "JOHN DOE"
+  #   date_of_birth: "01/01/1990"     # DD/MM/YYYY
+  #   nationality: "United States"
+
+  # When multiple_nationalities is true — your other nationalities (one or more)
+  other_nationalities: []
+  # - "United States"
+
 requested_information:
   entry_type: "single"                 # single | multiple
   valid_from: ""
@@ -28,6 +39,14 @@ passport_information:
   date_of_issue: ""
   expiry_date: ""
   other_valid_passports: false
+  # When other_valid_passports is true — the form accepts ONE other passport
+  other_passports: []
+  # - type: "Ordinary passport"      # Ordinary passport | Diplomatic passport | Official passport | Other
+  #   specify: ""                    # only when type is "Other"
+  #   number: ""
+  #   issuing_authority: ""
+  #   date_of_issue: ""              # DD/MM/YYYY
+  #   expiry_date: ""                # DD/MM/YYYY
 
 contact_information:
   permanent_address: ""
@@ -73,8 +92,14 @@ accompanying_children: []
 
 trip_expenses:
   intended_expenses_usd: ""
-  bought_insurance: ""
-  expense_covered_by: ""
+  bought_insurance: ""                 # Yes | No
+  insurance_specify: ""                # shown when bought_insurance is "Yes"
+  expense_covered_by: ""               # Personal | Company
+  payment_method: ""                   # Cash | Credit card
+  cover_company:                       # shown when expense_covered_by is "Company"
+    name: ""
+    address: ""
+    telephone: ""
 
 declarations:
   final_declaration: true

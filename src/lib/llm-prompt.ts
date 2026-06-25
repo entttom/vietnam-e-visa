@@ -22,7 +22,9 @@ personal_information:
   religion: ""
   place_of_birth: ""
   used_other_passports: false
+  used_passports: []             # if used_other_passports: true — [{number, full_name, date_of_birth, nationality}]
   multiple_nationalities: false
+  other_nationalities: []        # if multiple_nationalities: true — ["United States", ...]
   legal_violation: false
 
 requested_information:
@@ -37,6 +39,7 @@ passport_information:
   date_of_issue: ""
   expiry_date: ""
   other_valid_passports: false
+  other_passports: []            # if other_valid_passports: true — ONE [{type, specify, number, issuing_authority, date_of_issue, expiry_date}]
 
 contact_information:
   permanent_address: ""
@@ -76,8 +79,14 @@ accompanying_children: []
 
 trip_expenses:
   intended_expenses_usd: ""
-  bought_insurance: ""
-  expense_covered_by: ""
+  bought_insurance: ""           # Yes | No
+  insurance_specify: ""          # if bought_insurance: Yes
+  expense_covered_by: ""         # Personal | Company
+  payment_method: ""             # Cash | Credit card
+  cover_company:                 # if expense_covered_by: Company
+    name: ""
+    address: ""
+    telephone: ""
 
 declarations:
   final_declaration: true
@@ -97,8 +106,8 @@ declarations:
 7. Email address?
 8. Religion?
 9. Place of birth (city/country)?
-10. Have you ever used other passports? (yes/no)
-11. Do you have multiple nationalities? (yes/no)
+10. Have you ever used other passports to enter Viet Nam? (yes/no) — if yes, for each: passport number, full name, date of birth, nationality
+11. Do you have multiple nationalities? (yes/no) — if yes, list each other nationality
 12. Any violation of Vietnamese laws? (yes/no)
 
 ### Passport
@@ -107,7 +116,7 @@ declarations:
 15. Passport type (usually Ordinary passport)?
 16. Date of issue (DD/MM/YYYY)?
 17. Expiry date (DD/MM/YYYY)?
-18. Do you hold other valid passports? (yes/no)
+18. Do you hold other valid passports? (yes/no) — if yes: type (and specify if "Others"), number, issuing authority, date of issue, expiry date
 
 ### Contact
 19. Permanent address (full)?
@@ -141,8 +150,8 @@ declarations:
 
 ### Expenses
 43. Intended expenses in USD?
-44. Did you buy travel insurance? (Yes/No or site label)
-45. Who covers trip expenses?
+44. Did you buy travel insurance? (Yes/No) — if Yes, specify the insurer/policy
+45. Who covers trip expenses? (Personal or Company) — also payment method (Cash/Credit card); if Company: company name, address, telephone
 
 ---
 
