@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/b2c6c722-96b1-4644-b7ee-b675ce845e49
 
 The easiest way to install without building from source:
 
-1. Open the [Releases](https://github.com/entttom/vietnam-e-visa/releases) page
+1. Open the [Releases](https://github.com/gssisaac/vietnam-e-visa/releases) page
 2. Download the latest **`vietnam-e-visa-v*.zip`** asset
 3. Unzip the file — you should see `manifest.json`, `icons/`, `assets/`, etc. at the top level
 4. Open Chrome → `chrome://extensions`
@@ -30,7 +30,7 @@ To update later, download the new release zip, remove the old unpacked folder, a
 ## Install from source (developers)
 
 ```bash
-git clone https://github.com/entttom/vietnam-e-visa.git
+git clone https://github.com/gssisaac/vietnam-e-visa.git
 cd vietnam-e-visa
 pnpm install
 pnpm build

@@ -7,12 +7,12 @@
   "author": "Isaac Chaneel Lee <gssisaac@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/entttom/vietnam-e-visa.git"
+    "url": "git+https://github.com/gssisaac/vietnam-e-visa.git"
   },
   "bugs": {
-    "url": "https://github.com/entttom/vietnam-e-visa/issues"
+    "url": "https://github.com/gssisaac/vietnam-e-visa/issues"
   },
-  "homepage": "https://github.com/entttom/vietnam-e-visa#readme",
+  "homepage": "https://github.com/gssisaac/vietnam-e-visa#readme",
   "keywords": [
     "vietnam",
     "e-visa",
