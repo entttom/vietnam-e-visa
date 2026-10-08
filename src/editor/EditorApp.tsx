@@ -204,7 +204,9 @@ export function EditorApp() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [error, setError] = useState(false);
-  const [importYaml, setImportYaml] = useState('');
+  const [importYaml, setImportYaml] = useState(''); // Advanced: edit the selected applicant
+  const [bulkImportText, setBulkImportText] = useState('');
+  const [importPanelOpen, setImportPanelOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const currentYaml = stringifyYaml(draft);
@@ -306,25 +308,47 @@ export function EditorApp() {
     } catch (err) { setStatus('Export failed: ' + String(err)); setError(true); }
   }
 
+  async function addImportedApplicants(yaml: string) {
+    // Validate the complete input before making any storage changes.
+    parseProfilesYaml(yaml);
+    if (isDirty && !(await saveCurrent())) {
+      throw new Error('Save the current applicant before importing.');
+    }
+
+    const added = await importProfilesYaml(yaml);
+    setProfiles(await loadProfiles());
+    openProfile(added[0]);
+    setBulkImportText('');
+    setImportPanelOpen(false);
+    setStatus('Imported ' + added.length + ' applicant(s). Existing profiles were preserved.');
+    setError(false);
+  }
+
+  async function importPastedYaml() {
+    if (!bulkImportText.trim() || importing) return;
+    setImporting(true);
+    try {
+      await addImportedApplicants(bulkImportText);
+    } catch (err) {
+      setStatus('Import failed: ' + String(err) + ' No applicants were added.');
+      setError(true);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function importFiles(files: FileList | null) {
     if (!files?.length || importing) return;
-    if (isDirty && !(await saveCurrent())) return;
     setImporting(true);
     try {
       const contents = await Promise.all(Array.from(files).map(async (file) => {
         if (file.size > 2_000_000) throw new Error(file.name + ' is too large (maximum 2 MB).');
         return file.text();
       }));
-      // Validate every file/document before changing local storage; a mix of
-      // individual and YAML-stream exports can be imported in one operation.
+      // Individual files and multi-document YAML files use the same importer
+      // as pasted text. Validate every file before adding any applicants.
       const documents = contents.flatMap((yaml) => parseProfilesYaml(yaml));
-      const combined = documents.map((data) => stringifyYaml(data)).join('\n---\n');
-      const added = await importProfilesYaml(combined);
-      const latest = await loadProfiles();
-      setProfiles(latest);
-      openProfile(added[0]);
-      setStatus('Imported ' + added.length + ' applicant(s). Existing profiles were preserved.');
-      setError(false);
+      await addImportedApplicants(documents.map((data) => stringifyYaml(data)).join('\n---\n'));
     } catch (err) {
       setStatus('Import failed: ' + String(err) + ' No applicants were added.');
       setError(true);
@@ -532,18 +556,62 @@ export function EditorApp() {
               <Button variant="outline" onClick={() => void addNew()} disabled={loading}><FilePlus2 />New person</Button>
               <Button variant="outline" onClick={() => void duplicate()} disabled={loading || !selectedId}><Copy />Duplicate</Button>
               <Button variant="outline" onClick={() => void removeCurrent()} disabled={loading || profiles.length < 2}><Trash2 />Delete</Button>
-              <input ref={importFileRef} type="file" className="hidden" accept=".yaml,.yml,.txt,text/yaml" multiple
-                aria-label="Select YAML applicant file(s)" onChange={(event) => void importFiles(event.target.files)} />
-              <Button variant="outline" disabled={loading || importing} onClick={() => importFileRef.current?.click()}>
-                <Upload />{importing ? 'Importing…' : 'Import YAML'}
+              <Button variant="outline" disabled={loading || importing}
+                onClick={() => setImportPanelOpen((open) => !open)}>
+                <Upload />Import YAML
               </Button>
               <Button variant="outline" disabled={loading || !profiles.length} onClick={() => void exportAll()}>
                 <Download />Export all
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Duplicate clears personal/passport details and resets the completion status. Import YAML accepts a single profile, several YAML files, or one multi-applicant file separated by ---; imported profiles are added, never overwritten.
+              Duplicate clears personal/passport details and resets the completion status.
+              Imported applicants are added without overwriting existing profiles.
             </p>
+            {importPanelOpen ? (
+              <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold">Import applicant YAML</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Paste YAML below or choose one or more files. A single applicant and
+                    multiple applicants separated by a line containing --- are both supported.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-yaml-import">Paste YAML</Label>
+                  <textarea id="bulk-yaml-import" rows={9} spellCheck={false}
+                    value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)}
+                    placeholder={'---\\npersonal_information:\\n  surname: "DOE"\\n  given_name: "JANE"\\npassport_information:\\n  number: "A12345678"'}
+                    className="w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-xs"
+                    disabled={importing} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => void importPastedYaml()}
+                      disabled={importing || !bulkImportText.trim()}>
+                      <Upload />{importing ? 'Importing…' : 'Import pasted YAML'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setBulkImportText('')}
+                      disabled={importing || !bulkImportText}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <div>
+                    <Label htmlFor="yaml-files">Or import YAML files</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Select .yaml, .yml or .txt files (multiple selection allowed).
+                    </p>
+                  </div>
+                  <input ref={importFileRef} id="yaml-files" type="file" className="sr-only"
+                    accept=".yaml,.yml,.txt,text/yaml" multiple
+                    onChange={(event) => void importFiles(event.target.files)} />
+                  <Button variant="outline" size="sm" disabled={importing}
+                    onClick={() => importFileRef.current?.click()}>
+                    <Upload />Choose files
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
