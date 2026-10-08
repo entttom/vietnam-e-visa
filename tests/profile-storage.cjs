@@ -53,7 +53,7 @@ global.fetch = async (url) => ({
 });
 global.crypto = require('node:crypto').webcrypto;
 
-const { isEvisaSiteUrl, isForeignersUrl } = require('../src/lib/shared.ts');
+const { isEvisaSiteUrl, isForeignersUrl, normalizePurposeOfEntry } = require('../src/lib/shared.ts');
 const { parseYaml, stringifyYaml } = require('../src/lib/yaml.ts');
 const { LLM_PROFILE_PROMPT, PROFILE_SETUP_STEPS } = require('../src/lib/llm-prompt.ts');
 const {
@@ -66,6 +66,20 @@ const {
 } = require('../src/lib/profile-storage.ts');
 
 async function run() {
+  // Historical YAML must not attempt to select the obsolete "Tourism" option.
+  assert.equal(normalizePurposeOfEntry('Tourism'), 'Tourist');
+  assert.equal(normalizePurposeOfEntry(' tourism '), 'Tourist');
+  assert.equal(normalizePurposeOfEntry('Tourist'), 'Tourist');
+  assert.equal(normalizePurposeOfEntry('Tourism, visiting relatives'), 'Tourism, visiting relatives');
+  assert.equal(normalizePurposeOfEntry('Business'), 'Business');
+  for (const file of ['data/select-options.yaml', 'public/data/select-options.yaml']) {
+    const contents = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    const purposes = contents.split('purpose_of_entry:\n')[1].split('\nborder_gate_entry:')[0];
+    assert.ok(purposes.includes('  - "Tourist"\n'), file + ' includes Tourist');
+    assert.ok(!purposes.includes('  - "Tourism"\n'), file + ' omits obsolete Tourism');
+  }
+  assert.equal(parseYaml(fs.readFileSync(path.join(__dirname, '..', 'public/profile.example.yaml'), 'utf8')).trip_information.purpose_of_entry, 'Tourist');
+  assert.ok(LLM_PROFILE_PROMPT.includes('purpose_of_entry: "Tourist"'), 'Prompt must use Tourist');
   // Applicant controls must only show on the official secure e-Visa origin.
   const officialUrls = ['https://evisa.gov.vn/', 'https://evisa.gov.vn/e-visa/foreigners', 'https://evisa.gov.vn/e-visa/foreigners?lang=en'];
   for (const url of officialUrls) assert.equal(isEvisaSiteUrl(url), true, url);
@@ -191,6 +205,13 @@ async function run() {
   const mixed = customYaml + '\n---\n' + stringifyYaml({ ...extra, personal_information: { surname: 'SECOND' }, applicant_metadata: { visa_completed: false } });
   assert.equal(parseProfilesYaml(mixed).length, 2);
 
+  const importedLegacy = await importProfilesYaml(stringifyYaml({
+    personal_information: { surname: 'LEGACY', given_name: 'TOURIST' },
+    passport_information: { number: 'L0000001' },
+    trip_information: { purpose_of_entry: 'Tourism' },
+  }));
+  assert.equal(parseYaml(importedLegacy[0].yaml).trip_information.purpose_of_entry, 'Tourist',
+    'Old YAML is normalized on import');
   const previous = (await loadProfiles()).length;
   await assert.rejects(
     () => importProfilesYaml(backup + '\n---\npassport_information:\n  number: "MISSING_PERSONAL"'),

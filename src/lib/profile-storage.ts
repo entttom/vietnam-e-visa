@@ -1,4 +1,4 @@
-import { addDaysIso, isoToDdMmYyyy } from './shared';
+import { addDaysIso, isoToDdMmYyyy, normalizePurposeOfEntry } from './shared';
 import { parseYaml, stringifyYaml, type VisaProfile } from './yaml';
 
 export const STORAGE_KEY_PROFILE_YAML = 'profileYaml'; // legacy single-profile backup
@@ -273,6 +273,10 @@ export async function importProfilesYaml(text: string): Promise<StoredProfile[]>
   const entries = parseProfilesYaml(text);
   const profiles = await loadProfiles();
   const additions = entries.map((data, index) => {
+    const trip = data.trip_information as Record<string, unknown> | undefined;
+    if (trip && 'purpose_of_entry' in trip) {
+      trip.purpose_of_entry = normalizePurposeOfEntry(trip.purpose_of_entry);
+    }
     const meta = data.applicant_metadata;
     const label = meta && typeof meta === 'object' && !Array.isArray(meta)
       ? String((meta as Record<string, unknown>).label || '').trim() : '';

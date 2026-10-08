@@ -15,6 +15,7 @@ import {
   setActiveProfileId, type StoredProfile,
 } from '@/lib/profile-storage';
 import { parseYaml, stringifyYaml, type VisaProfile } from '@/lib/yaml';
+import { normalizePurposeOfEntry } from '@/lib/shared';
 import { enableOrUnlockSync, getSyncState, lockSync, syncNow } from '@/lib/profile-sync';
 
 type Kind = 'text' | 'date' | 'number' | 'check' | 'select' | 'area';
@@ -227,9 +228,16 @@ export function EditorApp() {
 
   function openProfile(profile: StoredProfile) {
     const parsed = parseYaml(profile.yaml);
+    const original = stringifyYaml(parsed);
+    const trip = parsed.trip_information as DataMap | undefined;
+    if (trip && 'purpose_of_entry' in trip) {
+      // Flag a legacy "Tourism" value as an unsaved edit so the user can
+      // explicitly save the current "Tourist" value without losing data.
+      trip.purpose_of_entry = normalizePurposeOfEntry(trip.purpose_of_entry);
+    }
     setSelectedId(profile.id);
     setDraft(parsed);
-    setSavedDraft(stringifyYaml(parsed));
+    setSavedDraft(original);
     setStatus('');
     setImportYaml('');
     setRawYamlDraft(null);
