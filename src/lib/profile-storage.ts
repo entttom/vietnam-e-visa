@@ -6,6 +6,7 @@ export const STORAGE_KEY_ENTRY_DATE = 'lastEntryDate'; // legacy popup preferenc
 export const STORAGE_KEY_STAY_DAYS = 'profileStayDays'; // legacy popup preference
 export const STORAGE_KEY_PROFILES = 'visaProfilesV2';
 export const STORAGE_KEY_ACTIVE_PROFILE = 'activeVisaProfileId';
+export const STORAGE_KEY_DELETED_PROFILES = 'deletedVisaProfileIdsV1';
 
 export const PROFILE_BLANK_TEMPLATE_FILE = 'profile.form.yaml';
 export const PROFILE_EXAMPLE_FILE = 'profile.example.yaml';
@@ -14,6 +15,7 @@ export interface StoredProfile {
   id: string;
   label: string;
   yaml: string;
+  updatedAt?: number;
 }
 
 async function blankYaml(): Promise<string> {
@@ -36,7 +38,7 @@ export async function loadProfiles(): Promise<StoredProfile[]> {
 
   const legacy = stored[STORAGE_KEY_PROFILE_YAML];
   const yaml = typeof legacy === 'string' && legacy.trim() ? legacy : await blankYaml();
-  const profiles: StoredProfile[] = [{ id: newId(), label: 'Applicant 1', yaml }];
+  const profiles: StoredProfile[] = [{ id: newId(), label: 'Applicant 1', yaml, updatedAt: Date.now() }];
   await chrome.storage.local.set({
     [STORAGE_KEY_PROFILES]: profiles,
     [STORAGE_KEY_ACTIVE_PROFILE]: profiles[0].id,
@@ -84,13 +86,13 @@ export async function saveProfileYaml(yaml: string, profileId?: string): Promise
   const id = profileId || (await loadActiveProfileId());
   const index = profiles.findIndex((item) => item.id === id);
   if (index < 0) throw new Error('Selected applicant no longer exists.');
-  profiles[index] = { ...profiles[index], yaml };
+  profiles[index] = { ...profiles[index], yaml, updatedAt: Date.now() };
   await chrome.storage.local.set({ [STORAGE_KEY_PROFILES]: profiles });
 }
 
 export async function createProfile(yaml?: string, label = 'New applicant'): Promise<StoredProfile> {
   const profiles = await loadProfiles();
-  const profile = { id: newId(), label, yaml: yaml ?? (await blankYaml()) };
+  const profile = { id: newId(), label, yaml: yaml ?? (await blankYaml()), updatedAt: Date.now() };
   parseYaml(profile.yaml);
   await chrome.storage.local.set({
     [STORAGE_KEY_PROFILES]: [...profiles, profile],
@@ -125,8 +127,13 @@ export async function deleteProfile(profileId: string): Promise<void> {
   const remaining = profiles.filter((profile) => profile.id !== profileId);
   if (remaining.length === profiles.length) throw new Error('Applicant not found.');
   if (remaining.length === 0) throw new Error('Keep at least one applicant. Create another before deleting this one.');
+  const result = await chrome.storage.local.get(STORAGE_KEY_DELETED_PROFILES);
+  const deleted = (result[STORAGE_KEY_DELETED_PROFILES] || {}) as Record<string, number>;
+  const deletedProfile = profiles.find((profile) => profile.id === profileId)!;
+  const deletedAt = Math.max(Date.now(), (deletedProfile.updatedAt ?? 0) + 1);
   await chrome.storage.local.set({
     [STORAGE_KEY_PROFILES]: remaining,
+    [STORAGE_KEY_DELETED_PROFILES]: { ...deleted, [profileId]: deletedAt },
     [STORAGE_KEY_ACTIVE_PROFILE]: remaining[0].id,
   });
 }
@@ -273,6 +280,7 @@ export async function importProfilesYaml(text: string): Promise<StoredProfile[]>
       id: newId(),
       label: label || `Imported applicant ${index + 1}`,
       yaml: stringifyYaml(data),
+      updatedAt: Date.now(),
     };
   });
   await chrome.storage.local.set({

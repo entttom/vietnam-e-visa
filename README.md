@@ -80,6 +80,9 @@ Source layout:
 
 ## Manage multiple applicants
 
+The options page has three tabs: **Applicant profiles**, **Instructions**, and **LLM Q&A Prompt**. The original prompt and setup instructions are available again. The **Advanced** section under Applicant profiles also includes a syntax-highlighted raw YAML editor, Load example, and Reset template.
+
+
 1. Open **Manage applicants** from the Chrome extension popup (or open the extension Options).
 2. Click **New person** to create an empty form, or **Duplicate** to copy the current applicant.
    Duplicating retains the shared itinerary, accommodation, address and contact details but clears
@@ -95,9 +98,38 @@ Source layout:
 into the new list of applicants the first time this version loads. The original single-profile
 storage entry remains available as a local backup.
 
-**Privacy:** All applicant records stay in your local Chrome extension storage. Profiles,
+**Privacy:** By default, all applicant records stay in local Chrome extension storage. Only if encrypted Chrome Sync is explicitly enabled are encrypted snapshots synchronized. Profiles,
 passport numbers, names and birth dates must **never** be committed to this public repository.
 Exported YAML files contain personal data; handle backups carefully.
+
+### Optional encrypted Chrome Sync
+
+In **Manage applicants → Encrypted Chrome Sync**, create a sync password of at least
+12 characters. Only after this opt-in, the extension uploads an **AES-256-GCM encrypted**
+snapshot of the applicant list and deletion markers to `chrome.storage.sync`.
+The encryption key is derived using PBKDF2-SHA256 and stored only in Chrome's
+memory-backed `chrome.storage.session`, never alongside the synced data.
+Your passphrase is not stored. Local records remain in existing
+`chrome.storage.local` storage, which is **not encrypted**.
+
+On another Chrome installation, sign in to the **same Google account**, enable
+Chrome's settings/extension synchronization, install the **same extension ID**,
+open Manage applicants and **unlock with the same password**. Existing local
+and remote applicants are merged by stable profile ID, with timestamp-based
+updates and deletion markers; the extension does not simply overwrite the whole
+local list. After unlocking, changes sync automatically while the browser is open.
+Use **Sync now** to retry after an offline period. You must unlock again after
+restarting Chrome. Keep a separate YAML backup.
+
+**Unpacked extension caveat:** Chrome Sync is scoped to the extension ID.
+Manually loaded unpacked extensions may be assigned different IDs on different
+computers or folder paths. Verify identical IDs at `chrome://extensions`
+before relying on this feature. Do **not** add a manifest key or uninstall
+the old extension just to change its ID: doing so can orphan existing local data.
+Chrome Sync is limited to about **100 KB total** with **8 KB per key**; encrypted
+snapshots are split into chunks. Errors are shown if the limit is reached.
+No separate server or password recovery is provided. This feature does not
+synchronize across unrelated extension IDs or different Google accounts.
 
 ### Multiple applicant YAML backup format
 

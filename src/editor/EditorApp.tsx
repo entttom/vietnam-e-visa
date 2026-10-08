@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Download, FilePlus2, Plus, Save, Trash2, Upload, Users } from 'lucide-react';
+import { Check, Copy, Download, FilePlus2, FileText, Plus, RotateCcw, Save, Trash2, Upload, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { YamlEditor } from '@/components/YamlEditor';
+import { LLM_PROFILE_PROMPT, PROFILE_SETUP_STEPS } from '@/lib/llm-prompt';
 import {
   createProfile, deleteProfile, downloadProfileYaml, duplicateProfile,
   exportProfileYaml, exportProfilesYaml, importProfilesYaml, isVisaCompleted, parseProfilesYaml,
   getProfileLabel, loadActiveProfileId, loadProfiles, saveProfileYaml,
+  PROFILE_BLANK_TEMPLATE_FILE, PROFILE_EXAMPLE_FILE,
   setActiveProfileId, type StoredProfile,
 } from '@/lib/profile-storage';
 import { parseYaml, stringifyYaml, type VisaProfile } from '@/lib/yaml';
+import { enableOrUnlockSync, getSyncState, lockSync, syncNow } from '@/lib/profile-sync';
 
 type Kind = 'text' | 'date' | 'number' | 'check' | 'select' | 'area';
 type Field = { path: string; label: string; kind?: Kind; options?: string[]; choices?: string };
@@ -209,6 +214,13 @@ export function EditorApp() {
   const [importPanelOpen, setImportPanelOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [syncPassword, setSyncPassword] = useState('');
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncUnlocked, setSyncUnlocked] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+  const [rawYamlDraft, setRawYamlDraft] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
   const currentYaml = stringifyYaml(draft);
   const isDirty = currentYaml !== savedDraft;
   const selectedProfile = profiles.find((profile) => profile.id === selectedId);
@@ -220,6 +232,7 @@ export function EditorApp() {
     setSavedDraft(stringifyYaml(parsed));
     setStatus('');
     setImportYaml('');
+    setRawYamlDraft(null);
   }
 
   useEffect(() => {
@@ -231,6 +244,9 @@ export function EditorApp() {
         openProfile(list.find((profile) => profile.id === id) || list[0]);
         const response = await fetch(chrome.runtime.getURL('data/select-options.yaml'));
         if (response.ok) setReference(parseYaml(await response.text()));
+        const sync = await getSyncState();
+        setSyncEnabled(sync.hasVault);
+        setSyncUnlocked(sync.unlocked);
       } catch (err) {
         setStatus('Could not load applicants: ' + String(err));
         setError(true);
@@ -240,6 +256,45 @@ export function EditorApp() {
     }
     void init();
   }, []);
+
+  async function unlockSync() {
+    if (!syncPassword || syncBusy) return;
+    if (isDirty && !(await saveCurrent())) return;
+    setSyncBusy(true);
+    try {
+      const result = await enableOrUnlockSync(syncPassword);
+      setSyncPassword('');
+      setSyncEnabled(true);
+      setSyncUnlocked(true);
+      const list = await loadProfiles();
+      setProfiles(list);
+      openProfile(list.find((p) => p.id === selectedId) || list[0]);
+      setSyncStatus('Encrypted Chrome Sync active: ' + result.total + ' applicant(s).');
+    } catch (err) {
+      setSyncStatus('Sync could not be enabled: ' + String(err));
+    } finally { setSyncBusy(false); }
+  }
+
+  async function refreshSync() {
+    if (isDirty && !(await saveCurrent())) return;
+    setSyncBusy(true);
+    try {
+      const result = await syncNow();
+      const list = await loadProfiles();
+      setProfiles(list);
+      openProfile(list.find((p) => p.id === selectedId) || list[0]);
+      setSyncStatus('Sync complete: ' + result.total + ' applicant(s).');
+    } catch (err) {
+      setSyncStatus('Sync failed: ' + String(err));
+    } finally { setSyncBusy(false); }
+  }
+
+  async function doLockSync() {
+    await lockSync();
+    setSyncUnlocked(false);
+    setSyncPassword('');
+    setSyncStatus('Sync locked. Local profiles remain available.');
+  }
 
   async function saveCurrent(): Promise<boolean> {
     try {
@@ -519,6 +574,38 @@ export function EditorApp() {
     );
   }
 
+  async function loadYamlTemplate(fileName: string, description: string) {
+    if (!window.confirm('Load ' + description + ' into the selected applicant? The current unsaved form edits will be replaced.')) return;
+    try {
+      const response = await fetch(chrome.runtime.getURL(fileName));
+      if (!response.ok) throw new Error('Could not load ' + fileName);
+      const documents = parseProfilesYaml(await response.text());
+      if (documents.length !== 1) throw new Error('Expected a single YAML template.');
+      setDraft(documents[0]);
+      setRawYamlDraft(null);
+      setStatus(description + ' loaded into the form. Review it and click Save applicant.');
+      setError(false);
+    } catch (err) { setStatus('Template failed: ' + String(err)); setError(true); }
+  }
+
+  function applyRawYaml() {
+    try {
+      const documents = parseProfilesYaml(rawYamlDraft ?? currentYaml);
+      if (documents.length !== 1) throw new Error('Edit one applicant here; use Import YAML for multiple people.');
+      setDraft(documents[0]);
+      setRawYamlDraft(null);
+      setStatus('Raw YAML applied to the form. Review and click Save applicant.');
+      setError(false);
+    } catch (err) { setStatus('YAML is invalid: ' + String(err)); setError(true); }
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(LLM_PROFILE_PROMPT);
+      setPromptCopied(true);
+    } catch (err) { setStatus('Could not copy prompt: ' + String(err)); setError(true); }
+  }
+
   function importProfile() {
     try {
       const documents = parseProfilesYaml(importYaml);
@@ -538,6 +625,13 @@ export function EditorApp() {
             Manage each traveller separately. The extension stores one YAML document per applicant locally in Chrome.
           </p>
         </div>
+        <Tabs defaultValue="applicants" className="space-y-4">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+            <TabsTrigger value="applicants">Applicant profiles</TabsTrigger>
+            <TabsTrigger value="instructions">Instructions</TabsTrigger>
+            <TabsTrigger value="llm-prompt">LLM Q&amp;A Prompt</TabsTrigger>
+          </TabsList>
+          <TabsContent value="applicants" className="space-y-5">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Users className="size-5" />Applicant profiles</CardTitle>
@@ -615,6 +709,55 @@ export function EditorApp() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Encrypted Chrome Sync</CardTitle>
+            <CardDescription>
+              Optional sync between Chrome installations using the same Google account,
+              Chrome Sync enabled, and the same extension ID.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Visa and passport details are encrypted with your own password before
+              entering Chrome Sync. Your password is not saved. Unlock once per Chrome session.
+              The existing local profiles remain on this computer.
+            </p>
+            {syncUnlocked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Sync unlocked — changes sync automatically.</span>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void refreshSync()}>
+                  Sync now
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void doLockSync()}>
+                  Lock
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-56 flex-1 space-y-1">
+                  <Label htmlFor="chrome-sync-password">Sync password (at least 12 characters)</Label>
+                  <Input id="chrome-sync-password" type="password"
+                    autoComplete="new-password" value={syncPassword}
+                    onChange={(event) => setSyncPassword(event.target.value)}
+                    placeholder={syncEnabled ? 'Enter your existing sync password' : 'Create a new sync password'} />
+                </div>
+                <Button disabled={syncBusy || syncPassword.length < 12}
+                  onClick={() => void unlockSync()}>
+                  {syncBusy ? 'Connecting…' : syncEnabled ? 'Unlock and sync' : 'Enable encrypted sync'}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Important: unpacked extensions can have different IDs depending on the
+              installation path. Check the extension ID in chrome://extensions on both browsers.
+              Different IDs cannot share Chrome Sync data. No server or password recovery is provided.
+              Keep an exported YAML backup.
+            </p>
+            {syncStatus ? <p role="status" className="text-sm">{syncStatus}</p> : null}
+          </CardContent>
+        </Card>
+
         {status && <p role="status" className={error ? 'text-sm text-destructive' : 'text-sm text-emerald-700 dark:text-emerald-400'}>{status}</p>}
         {loading ? <p>Loading applicant profiles…</p> : selectedProfile ? (
           <>
@@ -641,6 +784,29 @@ export function EditorApp() {
                 <Button variant="outline" onClick={() => downloadProfileYaml(exportProfileYaml({ ...selectedProfile, yaml: currentYaml }), 'evisa-' + selectedId + '.yaml')}>
                   <Download />Export this person's YAML
                 </Button>
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm font-semibold">Raw YAML editor (selected applicant)</summary>
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Original YAML editor with syntax highlighting. Apply changes to the form,
+                      then click Save applicant. This only edits the currently selected person.
+                    </p>
+                    <YamlEditor value={rawYamlDraft ?? currentYaml} onChange={setRawYamlDraft} height="400px" />
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={applyRawYaml} disabled={rawYamlDraft === null}>
+                        <Save />Apply YAML to form
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        onClick={() => void loadYamlTemplate(PROFILE_EXAMPLE_FILE, 'Example profile')}>
+                        <FileText />Load example
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        onClick={() => void loadYamlTemplate(PROFILE_BLANK_TEMPLATE_FILE, 'Blank template')}>
+                        <RotateCcw />Reset template
+                      </Button>
+                    </div>
+                  </div>
+                </details>
                 <div className="space-y-2">
                   <Label>Import YAML into selected applicant (not saved until you click Save)</Label>
                   <textarea value={importYaml} onChange={(event) => setImportYaml(event.target.value)} rows={6}
@@ -651,6 +817,69 @@ export function EditorApp() {
             </details>
           </>
         ) : null}
+          </TabsContent>
+
+          <TabsContent value="instructions">
+            <Card>
+              <CardHeader>
+                <CardTitle>How to set up your e-Visa profiles</CardTitle>
+                <CardDescription>The original instructions, updated for multiple applicants.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <ol className="space-y-4">
+                  {PROFILE_SETUP_STEPS.map((step, index) => (
+                    <li key={step.title} className="flex gap-3">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="font-medium">{step.title}</p>
+                        <p className="text-sm text-muted-foreground">{step.body}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+                <div className="space-y-2 border-t pt-4">
+                  <h3 className="font-medium">YAML &amp; official dropdown labels</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Dates use DD/MM/YYYY. Values for nationality, province, ward and border gate must
+                    match the official English choices. The reference file is data/select-options.yaml.
+                    Use the raw YAML editor under Advanced to manually adjust a single applicant.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium">Working with ChatGPT</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Open the LLM Q&amp;A Prompt tab, copy the prompt and paste it into ChatGPT or Claude.
+                    Answer questions one at a time and paste the resulting YAML into Applicant profiles → Import YAML.
+                    Multiple people can be imported together with the --- YAML document separator.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="llm-prompt">
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Q&amp;A prompt for ChatGPT or Claude</CardTitle>
+                  <CardDescription className="mt-1">
+                    Copy the prompt to generate complete YAML for one or more family members.
+                  </CardDescription>
+                </div>
+                <Button size="sm" onClick={() => void copyPrompt()}>
+                  {promptCopied ? <Check /> : <Copy />}{promptCopied ? 'Copied' : 'Copy prompt'}
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/20 p-4 font-mono text-xs leading-relaxed">
+                  {LLM_PROFILE_PROMPT}
+                </pre>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

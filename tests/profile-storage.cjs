@@ -13,17 +13,39 @@ require.extensions['.ts'] = function loadTypeScript(module, fileName) {
 };
 
 const state = {};
+const synced = {};
+const session = {};
+function storageArea(target, quota = 0) {
+  const area = {
+    async get(keys) {
+      const names = Array.isArray(keys) ? keys : typeof keys === 'string' ? [keys] : Object.keys(keys || target);
+      return Object.fromEntries(names.map((key) => [key, target[key]]));
+    },
+    async set(values) {
+      if (quota) {
+        const merged = { ...target, ...values };
+        for (const [key, value] of Object.entries(merged))
+          if (Buffer.byteLength(JSON.stringify(value)) + key.length > 8192)
+            throw new Error('QUOTA_BYTES_PER_ITEM');
+        const total = Object.entries(merged).reduce((sum, [key, value]) =>
+          sum + key.length + Buffer.byteLength(JSON.stringify(value)), 0);
+        if (total > quota) throw new Error('QUOTA_BYTES');
+      }
+      Object.assign(target, values);
+    },
+    async remove(keys) { for (const key of Array.isArray(keys) ? keys : [keys]) delete target[key]; },
+    async setAccessLevel() {},
+  };
+  return area;
+}
 global.chrome = {
   runtime: { getURL: (file) => 'test-extension://' + file },
   storage: {
-    local: {
-      async get(keys) {
-        const names = Array.isArray(keys) ? keys : typeof keys === 'string' ? [keys] : Object.keys(keys || state);
-        return Object.fromEntries(names.map((key) => [key, state[key]]));
-      },
-      async set(values) { Object.assign(state, values); },
-    },
+    local: storageArea(state),
+    sync: storageArea(synced, 102400),
+    session: storageArea(session),
   },
+
 };
 global.fetch = async (url) => ({
   ok: true,
@@ -32,6 +54,9 @@ global.fetch = async (url) => ({
 global.crypto = require('node:crypto').webcrypto;
 
 const { parseYaml, stringifyYaml } = require('../src/lib/yaml.ts');
+const {
+  enableOrUnlockSync, lockSync, syncNow, getSyncState, mergeSnapshots,
+} = require('../src/lib/profile-sync.ts');
 const {
   loadProfiles, saveProfileYaml, loadProfileYaml, createProfile, duplicateProfile,
   getProfileEntryDate, withEntryDate, parseStayDaysFromYaml, deleteProfile, setActiveProfileId,
@@ -127,6 +152,54 @@ async function run() {
   );
   assert.equal((await loadProfiles()).length, previous, 'Invalid batch leaves storage unchanged');
   assert.equal(parseProfilesYaml('\uFEFF' + backup).length, 2, 'UTF-8 BOM is supported');
-  console.log('Profile migration, YAML multi-document import/export, atomic rollback and completion flags: PASS');
+  // Sync vault stores ciphertext only, and the encryption key is session-only.
+  const originalCount = (await loadProfiles()).length;
+  const enabled = await enableOrUnlockSync('strong sync password 12345');
+  assert.equal(enabled.total, originalCount);
+  assert.equal((await getSyncState()).unlocked, true);
+  const vaultData = JSON.stringify(synced);
+  assert.equal(vaultData.includes('A0001234'), false, 'Passport numbers cannot leak to Chrome Sync');
+  assert.equal(vaultData.includes('personal_information'), false, 'YAML must be encrypted');
+
+  // On another browser, the local profile set is different.
+  const originalProfiles = await loadProfiles();
+  state.visaProfilesV2 = [{
+    id: 'other-browser-applicant', label: 'Second browser',
+    yaml: stringifyYaml({ ...sample, personal_information: { surname: 'OTHER', given_name: 'BROWSER' } }),
+    updatedAt: Date.now() + 100,
+  }];
+  await lockSync();
+  assert.equal((await getSyncState()).unlocked, false);
+  const beforeWrongPassword = JSON.stringify(state.visaProfilesV2);
+  await assert.rejects(() => enableOrUnlockSync('this is a wrong password 123'), /Incorrect sync password/);
+  assert.equal(JSON.stringify(state.visaProfilesV2), beforeWrongPassword, 'Wrong password never modifies local profiles');
+  const reunited = await enableOrUnlockSync('strong sync password 12345');
+  assert.equal(reunited.total, originalCount + 1, 'Union of people from two browsers');
+  assert.equal((await loadProfiles()).length, originalCount + 1);
+  assert.equal(JSON.stringify(synced).includes('A0001234'), false);
+
+  // Tombstones from Chrome browser A must prevent old copies reappearing.
+  await deleteProfile('other-browser-applicant');
+  const deletionResult = await syncNow();
+  assert.equal(deletionResult.total, originalCount);
+  assert.equal((await loadProfiles()).length, originalCount);
+  const syncedHead = synced.visaEvisaSyncHeadV1;
+  assert.ok(syncedHead && syncedHead.parts >= 1);
+
+  // Syncing unchanged records must not continuously republish the vault.
+  await syncNow();
+  assert.equal(synced.visaEvisaSyncHeadV1.snapshot, syncedHead.snapshot);
+
+  // Test a large profile whose ciphertext cannot fit in Chrome's 8KB/item limit.
+  const large = stringifyYaml({
+    ...sample, occupation: { company_address: 'Long details: ' + Array.from({length:5000},(_,i)=>i.toString(36)).join('-') },
+  });
+  await saveProfileYaml(large, originalProfiles[0].id);
+  await syncNow();
+  assert.ok(synced.visaEvisaSyncHeadV1.parts > 1, 'Large snapshots are split into parts');
+  const syncValues = Object.entries(synced).filter(([name]) => name.startsWith('visaEvisaSyncPartV1_'));
+  assert.ok(syncValues.every(([name,value]) => Buffer.byteLength(JSON.stringify(value)) + name.length <= 8192));
+  console.log('Encrypted Chrome Sync, merge, password rejection, deletions, chunking, unchanged-sync: PASS');
+    console.log('Profile migration, YAML multi-document import/export, atomic rollback and completion flags: PASS');
 }
 run().catch((err) => { console.error(err); process.exitCode = 1; });

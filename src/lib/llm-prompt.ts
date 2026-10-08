@@ -1,14 +1,25 @@
-export const LLM_PROFILE_PROMPT = `You are helping me fill out a Vietnam e-Visa application profile in YAML format.
+export const LLM_PROFILE_PROMPT = `You are helping me fill out one or more Vietnam e-Visa applicant profiles in YAML format.
 
-Ask me ONE question at a time. Wait for my answer before asking the next question.
-When you have all required information, output ONLY a valid YAML document matching the schema below.
-Use DD/MM/YYYY for all dates. Use exact English labels for dropdown fields (see hints).
+First ask how many applicants I want to prepare, then ask ONE question at a time.
+Wait for my answer before asking the next question. Do not ask for optional fields
+if I say to leave voluntary fields blank. Reuse explicitly confirmed shared
+travel and contact details for a family, but never assume someone else's passport
+number, name, birth date or other personal identity information.
+When you have all required information, output ONLY valid YAML. Each applicant
+must be a complete standalone YAML document. For multiple applicants, separate
+documents with a line containing exactly ---.
+Use DD/MM/YYYY for all dates. Use exact English labels for dropdown fields.
+Never invent missing facts or store real passports in a public repository.
 
 ---
 
-## YAML schema
+## YAML schema (repeat this entire schema for each applicant)
 
 \`\`\`yaml
+applicant_metadata:
+  label: ""                       # Person's display label
+  visa_completed: false          # Own checklist, never proof of visa approval
+
 personal_information:
   surname: ""                    # UPPERCASE as on passport
   given_name: ""                 # UPPERCASE as on passport
@@ -156,27 +167,31 @@ declarations:
 
 ---
 
-Start with question 1 now.`;
+Start by asking how many applicants I need. Then ask question 1 for the first applicant.`;
 
 export const PROFILE_SETUP_STEPS = [
   {
-    title: 'Open the profile editor',
-    body: 'Click "Edit profile" in the extension popup, or open the editor page from the extension options.',
+    title: 'Open applicant profiles',
+    body: 'Open Manage applicants from the Chrome extension popup. Each person has a separate form and YAML profile.',
   },
   {
-    title: 'Fill in your details',
-    body: 'The editor opens with sample John Doe data. Edit the YAML directly, use Reset template for a blank form, or use an LLM with the Q&A prompt on the Instructions tab. Use Add trip to append a visit row at the end of vietnam_visits_last_year.',
+    title: 'Add or import people',
+    body: 'Click New person, Duplicate to reuse a shared itinerary, or Import YAML to paste text or select files. Separate multiple YAML profiles with --- on its own line.',
   },
   {
-    title: 'Save',
-    body: 'Click Save to store your profile in the extension. The autofill script reads from saved storage first.',
+    title: 'Fill in and save details',
+    body: 'Use the grouped form fields and Save applicant. Under Advanced you can open the original raw YAML editor, load an example, reset to a blank template or export one person.',
   },
   {
-    title: 'Optional: export profile.yaml',
-    body: 'Use Download to save profile.yaml to your computer for backup or version control.',
+    title: 'Generate YAML with an AI assistant',
+    body: 'Use the LLM Q&A Prompt tab and Copy prompt. Paste it into ChatGPT or Claude and answer one question at a time, then import the generated YAML.',
+  },
+  {
+    title: 'Optional backup or encrypted sync',
+    body: 'Export all applicants to a YAML backup. Chrome Sync is optional, password-protected and must be explicitly enabled with the same extension ID on every computer.',
   },
   {
     title: 'Use on the e-Visa site',
-    body: 'Open the foreigners form at evisa.gov.vn, pick your entry date in the popup, then click Fill Form.',
+    body: 'Open the foreigners form at evisa.gov.vn, choose the correct applicant and entry date in the popup, click Fill Form, review every field, and submit manually.',
   },
 ];
