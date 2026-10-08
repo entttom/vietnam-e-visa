@@ -11,6 +11,7 @@ import {
   setActiveProfileId, type StoredProfile,
 } from '@/lib/profile-storage';
 import { parseYaml, stringifyYaml, type VisaProfile } from '@/lib/yaml';
+import { enableOrUnlockSync, getSyncState, lockSync, syncNow } from '@/lib/profile-sync';
 
 type Kind = 'text' | 'date' | 'number' | 'check' | 'select' | 'area';
 type Field = { path: string; label: string; kind?: Kind; options?: string[]; choices?: string };
@@ -209,6 +210,11 @@ export function EditorApp() {
   const [importPanelOpen, setImportPanelOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [syncPassword, setSyncPassword] = useState('');
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncUnlocked, setSyncUnlocked] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
   const currentYaml = stringifyYaml(draft);
   const isDirty = currentYaml !== savedDraft;
   const selectedProfile = profiles.find((profile) => profile.id === selectedId);
@@ -231,6 +237,9 @@ export function EditorApp() {
         openProfile(list.find((profile) => profile.id === id) || list[0]);
         const response = await fetch(chrome.runtime.getURL('data/select-options.yaml'));
         if (response.ok) setReference(parseYaml(await response.text()));
+        const sync = await getSyncState();
+        setSyncEnabled(sync.hasVault);
+        setSyncUnlocked(sync.unlocked);
       } catch (err) {
         setStatus('Could not load applicants: ' + String(err));
         setError(true);
@@ -240,6 +249,45 @@ export function EditorApp() {
     }
     void init();
   }, []);
+
+  async function unlockSync() {
+    if (!syncPassword || syncBusy) return;
+    if (isDirty && !(await saveCurrent())) return;
+    setSyncBusy(true);
+    try {
+      const result = await enableOrUnlockSync(syncPassword);
+      setSyncPassword('');
+      setSyncEnabled(true);
+      setSyncUnlocked(true);
+      const list = await loadProfiles();
+      setProfiles(list);
+      openProfile(list.find((p) => p.id === selectedId) || list[0]);
+      setSyncStatus('Encrypted Chrome Sync active: ' + result.total + ' applicant(s).');
+    } catch (err) {
+      setSyncStatus('Sync could not be enabled: ' + String(err));
+    } finally { setSyncBusy(false); }
+  }
+
+  async function refreshSync() {
+    if (isDirty && !(await saveCurrent())) return;
+    setSyncBusy(true);
+    try {
+      const result = await syncNow();
+      const list = await loadProfiles();
+      setProfiles(list);
+      openProfile(list.find((p) => p.id === selectedId) || list[0]);
+      setSyncStatus('Sync complete: ' + result.total + ' applicant(s).');
+    } catch (err) {
+      setSyncStatus('Sync failed: ' + String(err));
+    } finally { setSyncBusy(false); }
+  }
+
+  async function doLockSync() {
+    await lockSync();
+    setSyncUnlocked(false);
+    setSyncPassword('');
+    setSyncStatus('Sync locked. Local profiles remain available.');
+  }
 
   async function saveCurrent(): Promise<boolean> {
     try {
@@ -612,6 +660,55 @@ export function EditorApp() {
                 </div>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Encrypted Chrome Sync</CardTitle>
+            <CardDescription>
+              Optional sync between Chrome installations using the same Google account,
+              Chrome Sync enabled, and the same extension ID.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Visa and passport details are encrypted with your own password before
+              entering Chrome Sync. Your password is not saved. Unlock once per Chrome session.
+              The existing local profiles remain on this computer.
+            </p>
+            {syncUnlocked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Sync unlocked — changes sync automatically.</span>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void refreshSync()}>
+                  Sync now
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void doLockSync()}>
+                  Lock
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-56 flex-1 space-y-1">
+                  <Label htmlFor="chrome-sync-password">Sync password (at least 12 characters)</Label>
+                  <Input id="chrome-sync-password" type="password"
+                    autoComplete="new-password" value={syncPassword}
+                    onChange={(event) => setSyncPassword(event.target.value)}
+                    placeholder={syncEnabled ? 'Enter your existing sync password' : 'Create a new sync password'} />
+                </div>
+                <Button disabled={syncBusy || syncPassword.length < 12}
+                  onClick={() => void unlockSync()}>
+                  {syncBusy ? 'Connecting…' : syncEnabled ? 'Unlock and sync' : 'Enable encrypted sync'}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Important: unpacked extensions can have different IDs depending on the
+              installation path. Check the extension ID in chrome://extensions on both browsers.
+              Different IDs cannot share Chrome Sync data. No server or password recovery is provided.
+              Keep an exported YAML backup.
+            </p>
+            {syncStatus ? <p role="status" className="text-sm">{syncStatus}</p> : null}
           </CardContent>
         </Card>
 
