@@ -80,6 +80,9 @@ Source layout:
 
 ## Manage multiple applicants
 
+The options page has three tabs: **Applicant profiles**, **Instructions**, and **LLM Q&A Prompt**. The original prompt and setup instructions are available again. The **Advanced** section under Applicant profiles also includes a syntax-highlighted raw YAML editor, Load example, and Reset template.
+
+
 1. Open **Manage applicants** from the Chrome extension popup (or open the extension Options).
 2. Click **New person** to create an empty form, or **Duplicate** to copy the current applicant.
    Duplicating retains the shared itinerary, accommodation, address and contact details but clears
