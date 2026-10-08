@@ -34,7 +34,7 @@
     "test": "node tests/profile-storage.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "package": "pnpm build && node scripts/package-release.js",
+    "package": "pnpm build && pnpm check:release && node scripts/package-release.js",
     "release": "pnpm package && node scripts/github-release.js",
     "fetch-options": "node scripts/fetch-options.js"
   },
