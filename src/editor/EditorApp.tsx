@@ -272,6 +272,7 @@ export function EditorApp() {
   }
 
   async function duplicate() {
+    if (isDirty && !(await saveCurrent())) return;
     try {
       const profile = await duplicateProfile(currentYaml);
       setProfiles(await loadProfiles());
