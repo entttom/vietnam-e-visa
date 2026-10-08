@@ -126,6 +126,11 @@ chrome.webNavigation.onCompleted.addListener(
   { url: [{ hostSuffix: 'evisa.gov.vn' }] }
 );
 
-connectDevReload();
+// Local reload server is available only when running the Vite development build.
+// Vite statically replaces import.meta.env.DEV with false in production and
+// removes the WebSocket client (including its reconnect timer) from releases.
+if (import.meta.env.DEV) {
+  connectDevReload();
+}
 
 export {};
