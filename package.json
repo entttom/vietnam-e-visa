@@ -1,18 +1,18 @@
 {
   "name": "vietnam-e-visa-autofill",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Chrome extension that auto-fills the Vietnam e-Visa application form from a YAML profile",
   "type": "module",
   "license": "MIT",
   "author": "Isaac Chaneel Lee <gssisaac@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gssisaac/vietnam-e-visa.git"
+    "url": "git+https://github.com/entttom/vietnam-e-visa.git"
   },
   "bugs": {
-    "url": "https://github.com/gssisaac/vietnam-e-visa/issues"
+    "url": "https://github.com/entttom/vietnam-e-visa/issues"
   },
-  "homepage": "https://github.com/gssisaac/vietnam-e-visa#readme",
+  "homepage": "https://github.com/entttom/vietnam-e-visa#readme",
   "keywords": [
     "vietnam",
     "e-visa",
@@ -30,6 +30,7 @@
     "dev": "vite",
     "prebuild": "node scripts/optimize-icons.js",
     "build": "vite build",
+    "test": "node tests/profile-storage.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "package": "pnpm build && node scripts/package-release.js",
