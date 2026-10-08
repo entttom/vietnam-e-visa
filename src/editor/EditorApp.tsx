@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Copy, Download, FilePlus2, Plus, Save, Trash2, Upload, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   createProfile, deleteProfile, downloadProfileYaml, duplicateProfile,
+  exportProfileYaml, exportProfilesYaml, importProfilesYaml, isVisaCompleted, parseProfilesYaml,
   getProfileLabel, loadActiveProfileId, loadProfiles, saveProfileYaml,
   setActiveProfileId, type StoredProfile,
 } from '@/lib/profile-storage';
@@ -204,6 +205,8 @@ export function EditorApp() {
   const [status, setStatus] = useState('');
   const [error, setError] = useState(false);
   const [importYaml, setImportYaml] = useState('');
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   const currentYaml = stringifyYaml(draft);
   const isDirty = currentYaml !== savedDraft;
   const selectedProfile = profiles.find((profile) => profile.id === selectedId);
@@ -291,6 +294,44 @@ export function EditorApp() {
       setProfiles(list);
       openProfile(list[0]);
     } catch (err) { setStatus(String(err)); setError(true); }
+  }
+
+  async function exportAll() {
+    if (isDirty && !(await saveCurrent())) return;
+    try {
+      const latest = await loadProfiles();
+      downloadProfileYaml(exportProfilesYaml(latest), 'vietnam-evisa-all-applicants.yaml');
+      setStatus('Exported ' + latest.length + ' applicants to one YAML file.');
+      setError(false);
+    } catch (err) { setStatus('Export failed: ' + String(err)); setError(true); }
+  }
+
+  async function importFiles(files: FileList | null) {
+    if (!files?.length || importing) return;
+    if (isDirty && !(await saveCurrent())) return;
+    setImporting(true);
+    try {
+      const contents = await Promise.all(Array.from(files).map(async (file) => {
+        if (file.size > 2_000_000) throw new Error(file.name + ' is too large (maximum 2 MB).');
+        return file.text();
+      }));
+      // Validate every file/document before changing local storage; a mix of
+      // individual and YAML-stream exports can be imported in one operation.
+      const documents = contents.flatMap((yaml) => parseProfilesYaml(yaml));
+      const combined = documents.map((data) => stringifyYaml(data)).join('\n---\n');
+      const added = await importProfilesYaml(combined);
+      const latest = await loadProfiles();
+      setProfiles(latest);
+      openProfile(added[0]);
+      setStatus('Imported ' + added.length + ' applicant(s). Existing profiles were preserved.');
+      setError(false);
+    } catch (err) {
+      setStatus('Import failed: ' + String(err) + ' No applicants were added.');
+      setError(true);
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
   }
 
   function changeField(path: string, value: unknown) {
@@ -456,11 +497,9 @@ export function EditorApp() {
 
   function importProfile() {
     try {
-      const parsed = parseYaml(importYaml);
-      if (!parsed.personal_information || !parsed.passport_information) {
-        throw new Error('The YAML must contain personal_information and passport_information.');
-      }
-      setDraft(parsed);
+      const documents = parseProfilesYaml(importYaml);
+      if (documents.length !== 1) throw new Error('This action edits one applicant. Use Import YAML at the top to add multiple profiles.');
+      setDraft(documents[0]);
       setStatus('YAML imported into the form. Review it and click Save.');
       setError(false);
     } catch (err) { setStatus('Import failed: ' + String(err)); setError(true); }
@@ -487,15 +526,23 @@ export function EditorApp() {
                 <select id="person" disabled={loading} value={selectedId}
                   onChange={(event) => void switchProfile(event.target.value)}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  {profiles.map((profile) => <option key={profile.id} value={profile.id}>{getProfileLabel(profile)}</option>)}
+                  {profiles.map((profile) => <option key={profile.id} value={profile.id}>{isVisaCompleted(profile.yaml) ? '✓ ' : ''}{getProfileLabel(profile)}</option>)}
                 </select>
               </div>
               <Button variant="outline" onClick={() => void addNew()} disabled={loading}><FilePlus2 />New person</Button>
               <Button variant="outline" onClick={() => void duplicate()} disabled={loading || !selectedId}><Copy />Duplicate</Button>
               <Button variant="outline" onClick={() => void removeCurrent()} disabled={loading || profiles.length < 2}><Trash2 />Delete</Button>
+              <input ref={importFileRef} type="file" className="hidden" accept=".yaml,.yml,.txt,text/yaml" multiple
+                aria-label="Select YAML applicant file(s)" onChange={(event) => void importFiles(event.target.files)} />
+              <Button variant="outline" disabled={loading || importing} onClick={() => importFileRef.current?.click()}>
+                <Upload />{importing ? 'Importing…' : 'Import YAML'}
+              </Button>
+              <Button variant="outline" disabled={loading || !profiles.length} onClick={() => void exportAll()}>
+                <Download />Export all
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Duplicate clears given name, birth date, sex, ID and passport details. Verify the remaining data before submitting.
+              Duplicate clears personal/passport details and resets the completion status. Import YAML accepts a single profile, several YAML files, or one multi-applicant file separated by ---; imported profiles are added, never overwritten.
             </p>
           </CardContent>
         </Card>
@@ -523,7 +570,7 @@ export function EditorApp() {
                   The form above edits YAML internally. Use these tools only when importing a previous YAML profile or creating a backup.
                   Never upload passport information to a public GitHub repository.
                 </p>
-                <Button variant="outline" onClick={() => downloadProfileYaml(currentYaml, 'evisa-' + selectedId + '.yaml')}>
+                <Button variant="outline" onClick={() => downloadProfileYaml(exportProfileYaml({ ...selectedProfile, yaml: currentYaml }), 'evisa-' + selectedId + '.yaml')}>
                   <Download />Export this person's YAML
                 </Button>
                 <div className="space-y-2">
