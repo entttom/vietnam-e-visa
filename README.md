@@ -88,7 +88,7 @@ Source layout:
    visit-history, nationality and accompanying-child sections. Click **Save applicant**.
 4. Select the next applicant and repeat. Each person's data is stored in a separate YAML document
    within Chrome's local extension storage.
-5. **Import YAML** at the top of **Applicant profiles** accepts single-person YAML files, multiple selected YAML files, or a combined YAML backup. It **adds** profiles without overwriting existing people.
+5. Click **Import YAML** at the top of **Applicant profiles** to open a panel: **paste YAML directly into the text area** and click **Import pasted YAML**, or click **Choose files** to upload one or more `.yaml`, `.yml` or `.txt` files. Both methods accept a single applicant or multiple YAML documents separated by `---`. Import always **adds** new profiles without overwriting existing people.
 6. **Export all** saves every applicant (including each completion status) into one YAML file. The advanced section still supports single-person YAML export and importing text into the currently selected person.
 
 **Existing installations:** The previous single `profileYaml` entry is automatically migrated
