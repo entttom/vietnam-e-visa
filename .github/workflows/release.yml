@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build and package extension
-        run: pnpm package
+        run: pnpm build && pnpm check:release && node scripts/package-release.js
 
       - name: Create or update GitHub Release
         env:
