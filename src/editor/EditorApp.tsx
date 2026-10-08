@@ -581,7 +581,7 @@ export function EditorApp() {
                   <Label htmlFor="bulk-yaml-import">Paste YAML</Label>
                   <textarea id="bulk-yaml-import" rows={9} spellCheck={false}
                     value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)}
-                    placeholder={'---\\npersonal_information:\\n  surname: "DOE"\\n  given_name: "JANE"\\npassport_information:\\n  number: "A12345678"'}
+                    placeholder={'---\npersonal_information:\n  surname: "DOE"\n  given_name: "JANE"\npassport_information:\n  number: "A12345678"'}
                     className="w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-xs"
                     disabled={importing} />
                   <div className="flex flex-wrap gap-2">
