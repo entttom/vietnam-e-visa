@@ -116,6 +116,7 @@ export async function duplicateProfile(sourceYaml: string): Promise<StoredProfil
   data.personal_information = personal;
   data.passport_information = passport;
   data.accompanying_children = []; // Never reuse children across separate visa applications.
+  data.applicant_metadata = { ...(data.applicant_metadata as Record<string, unknown> || {}), visa_completed: false, label: 'New applicant (copy)' };
   return createProfile(stringifyYaml(data), 'New applicant (copy)');
 }
 
@@ -171,4 +172,112 @@ export function downloadProfileYaml(yaml: string, filename = 'profile.yaml'): vo
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+
+/**
+ * Completion is an applicant's own checklist status; it is not confirmation
+ * from the Vietnamese government that an e-Visa was issued.
+ */
+export function isVisaCompleted(yaml: string): boolean {
+  const profile = parseYaml(yaml);
+  const metadata = profile.applicant_metadata;
+  return Boolean(metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    && (metadata as Record<string, unknown>).visa_completed === true);
+}
+
+export function withVisaCompleted(yaml: string, completed: boolean): string {
+  const data = parseYaml(yaml);
+  const meta = data.applicant_metadata;
+  data.applicant_metadata = {
+    ...(meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {}),
+    visa_completed: completed,
+  };
+  return stringifyYaml(data);
+}
+
+/** Include human-readable profile labels and a status flag in every backup. */
+export function exportProfileYaml(profile: StoredProfile): string {
+  const data = parseYaml(profile.yaml);
+  const meta = data.applicant_metadata;
+  data.applicant_metadata = {
+    ...(meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {}),
+    label: profile.label,
+    visa_completed: isVisaCompleted(profile.yaml),
+  };
+  return stringifyYaml(data);
+}
+
+/**
+ * Standard YAML document stream: each applicant is one complete YAML document
+ * separated by a standalone "---" marker. Never split on personal_information:
+ * (that key may appear in nested text or be reordered).
+ */
+export function exportProfilesYaml(profiles: StoredProfile[]): string {
+  if (!profiles.length) throw new Error('No applicant profiles to export.');
+  return profiles.map((profile) => '---\n' + exportProfileYaml(profile).trimEnd() + '\n').join('');
+}
+
+function splitProfileDocuments(text: string): string[] {
+  const source = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const docs: string[] = [];
+  let current: string[] = [];
+
+  function commit() {
+    const contents = current.join('\n').trim();
+    if (contents && contents.split('\n').some((line) => line.trim() && !line.trim().startsWith('#'))) {
+      docs.push(contents);
+    }
+    current = [];
+  }
+
+  for (const line of source.split('\n')) {
+    if (/^---(?:[ \t]*#.*)?[ \t]*$/.test(line)) {
+      commit();
+    } else if (/^\.\.\.(?:[ \t]*#.*)?[ \t]*$/.test(line)) {
+      commit();
+    } else {
+      current.push(line);
+    }
+  }
+  commit();
+  return docs;
+}
+
+/** Parse and validate the entire stream before mutating Chrome storage. */
+export function parseProfilesYaml(text: string): VisaProfile[] {
+  const documents = splitProfileDocuments(text);
+  if (!documents.length) throw new Error('No applicant profiles found in the YAML file.');
+
+  return documents.map((document, index) => {
+    const data = parseYaml(document);
+    for (const section of ['personal_information', 'passport_information']) {
+      const block = data[section];
+      if (!block || typeof block !== 'object' || Array.isArray(block)) {
+        throw new Error(`Applicant ${index + 1}: missing or invalid ${section}.`);
+      }
+    }
+    return data;
+  });
+}
+
+/** Append all imported applicants in one atomic storage update; never overwrite. */
+export async function importProfilesYaml(text: string): Promise<StoredProfile[]> {
+  const entries = parseProfilesYaml(text);
+  const profiles = await loadProfiles();
+  const additions = entries.map((data, index) => {
+    const meta = data.applicant_metadata;
+    const label = meta && typeof meta === 'object' && !Array.isArray(meta)
+      ? String((meta as Record<string, unknown>).label || '').trim() : '';
+    return {
+      id: newId(),
+      label: label || `Imported applicant ${index + 1}`,
+      yaml: stringifyYaml(data),
+    };
+  });
+  await chrome.storage.local.set({
+    [STORAGE_KEY_PROFILES]: [...profiles, ...additions],
+    [STORAGE_KEY_ACTIVE_PROFILE]: additions[0].id,
+  });
+  return additions;
 }

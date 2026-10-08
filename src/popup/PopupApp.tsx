@@ -7,12 +7,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   getProfileEntryDate,
   getProfileLabel,
+  isVisaCompleted,
   loadActiveProfileId,
+  loadProfileYaml,
   loadProfiles,
   parseStayDaysFromYaml,
   saveProfileYaml,
   setActiveProfileId,
   withEntryDate,
+  withVisaCompleted,
   type StoredProfile,
 } from '@/lib/profile-storage';
 import { formatVisaRange, isForeignersUrl } from '@/lib/shared';
@@ -42,6 +45,7 @@ export function PopupApp() {
   const [statusTone, setStatusTone] = useState<'default' | 'ready' | 'error'>('default');
   const [fillDisabled, setFillDisabled] = useState(true);
   const [result, setResult] = useState<string | null>(null);
+  const [completionSaving, setCompletionSaving] = useState(false);
   const [resultTone, setResultTone] = useState<'success' | 'partial' | 'error'>('success');
 
   useEffect(() => { void init(); }, []);
@@ -112,6 +116,24 @@ export function PopupApp() {
     } catch (err) {
       setStatus('Could not save entry date: ' + String(err));
       setStatusTone('error');
+    }
+  }
+
+  async function handleVisaCompleted(checked: boolean) {
+    const profile = profiles.find((item) => item.id === selectedId);
+    if (!profile) return;
+    setCompletionSaving(true);
+    try {
+      const yaml = withVisaCompleted(await loadProfileYaml(selectedId), checked);
+      await saveProfileYaml(yaml, selectedId);
+      setProfiles((previous) => previous.map((person) => person.id === selectedId ? { ...person, yaml } : person));
+      setStatus(checked ? 'Visa application marked as done.' : 'Visa application marked as not done.');
+      setStatusTone('ready');
+    } catch (err) {
+      setStatus('Could not save visa status: ' + String(err));
+      setStatusTone('error');
+    } finally {
+      setCompletionSaving(false);
     }
   }
 
@@ -189,7 +211,7 @@ export function PopupApp() {
             <select id="applicant" value={selectedId} onChange={(event) => void handleSelect(event.target.value)}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
               {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>{getProfileLabel(profile)}</option>
+                <option key={profile.id} value={profile.id}>{isVisaCompleted(profile.yaml) ? '✓ ' : ''}{getProfileLabel(profile)}</option>
               ))}
             </select>
           </div>
@@ -199,6 +221,17 @@ export function PopupApp() {
             <p className="text-xs text-muted-foreground">Stored separately in the selected applicant's YAML profile.</p>
             {entryDate ? <p className="text-xs font-medium">{formatVisaRange(entryDate, stayDays)}</p> : null}
           </div>
+          {selectedId ? (
+            <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm">
+              <input type="checkbox" className="size-4" disabled={completionSaving}
+                checked={isVisaCompleted(profiles.find((profile) => profile.id === selectedId)?.yaml || '')}
+                onChange={(event) => void handleVisaCompleted(event.target.checked)} />
+              <span>
+                <span className="font-medium">Visa application done</span>
+                <span className="block text-xs text-muted-foreground">Your checklist only — not a visa approval confirmation.</span>
+              </span>
+            </label>
+          ) : null}
           <div className="flex flex-col gap-2">
             <Button onClick={() => void handleFill()} disabled={fillDisabled || !selectedId || !entryDate}>Fill Form</Button>
             <Button variant="outline" onClick={() => chrome.runtime.openOptionsPage()}><FileText />Manage applicants</Button>

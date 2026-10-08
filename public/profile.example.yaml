@@ -1,3 +1,7 @@
+# Local applicant checklist. Does not indicate government visa approval.
+applicant_metadata:
+  visa_completed: false
+
 # Example profile with sample values (not real data).
 # For a blank template use profile.form.yaml. Your live data goes in profile.yaml.
 
