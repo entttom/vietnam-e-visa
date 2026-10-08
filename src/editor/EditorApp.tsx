@@ -71,7 +71,7 @@ const SECTIONS: Section[] = [
     title: 'Occupation',
     description: 'Employment or other professional information.',
     fields: [
-      { path: 'occupation.occupation', label: 'Occupation', kind: SELECT, choices: 'occupation' },
+      { path: 'occupation.occupation', label: 'Occupation (exact English option on the visa website)' },
       { path: 'occupation.occupation_info', label: 'Occupation details' },
       { path: 'occupation.company_name', label: 'Company name' },
       { path: 'occupation.position', label: 'Position' },
