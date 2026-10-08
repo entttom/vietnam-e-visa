@@ -16,7 +16,6 @@ export function formatVisaRange(entryIso: string, stayDays: number): string {
   return `e-Visa valid: ${validFrom} → ${validTo} (${stayDays} days)`;
 }
 
-/** Only the official HTTPS Vietnam e-Visa origin may reveal stored applicant data. */
 /** Map the historical leisure entry reason to the currently offered label. */
 export function normalizePurposeOfEntry(value: unknown): unknown {
   return typeof value === 'string' && value.trim().toLowerCase() === 'tourism'
@@ -24,6 +23,7 @@ export function normalizePurposeOfEntry(value: unknown): unknown {
     : value;
 }
 
+/** Only the official HTTPS Vietnam e-Visa origin may reveal stored applicant data. */
 export function isEvisaSiteUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
