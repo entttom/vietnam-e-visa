@@ -18,7 +18,7 @@ import {
   withVisaCompleted,
   type StoredProfile,
 } from '@/lib/profile-storage';
-import { formatVisaRange, isForeignersUrl } from '@/lib/shared';
+import { formatVisaRange, isEvisaSiteUrl, isForeignersUrl } from '@/lib/shared';
 
 interface FillResponse {
   ok: boolean;
@@ -44,6 +44,7 @@ export function PopupApp() {
   const [status, setStatus] = useState('Checking page...');
   const [statusTone, setStatusTone] = useState<'default' | 'ready' | 'error'>('default');
   const [fillDisabled, setFillDisabled] = useState(true);
+  const [pageState, setPageState] = useState<'checking' | 'outside' | 'inside'>('checking');
   const [result, setResult] = useState<string | null>(null);
   const [completionSaving, setCompletionSaving] = useState(false);
   const [resultTone, setResultTone] = useState<'success' | 'partial' | 'error'>('success');
@@ -65,6 +66,23 @@ export function PopupApp() {
   }
 
   async function init() {
+    let tab: chrome.tabs.Tab | undefined;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    } catch {
+      setPageState('outside');
+      setFillDisabled(true);
+      return;
+    }
+
+    // Do not even load sensitive applicant profiles while browsing other sites.
+    if (!tab?.id || !isEvisaSiteUrl(tab.url || tab.pendingUrl)) {
+      setPageState('outside');
+      setFillDisabled(true);
+      return;
+    }
+
+    setPageState('inside');
     try {
       const available = await loadProfiles();
       setProfiles(available);
@@ -76,9 +94,8 @@ export function PopupApp() {
       return;
     }
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !isForeignersUrl(tab.url || tab.pendingUrl)) {
-      setStatus('Open the e-Visa foreigners form to fill an application.');
+    if (!isForeignersUrl(tab.url || tab.pendingUrl)) {
+      setStatus('You are on the official website. Open the foreigners application form to fill an e-Visa.');
       setFillDisabled(true);
       return;
     }
@@ -168,10 +185,12 @@ export function PopupApp() {
     try {
       const profile = profiles.find((item) => item.id === selectedId);
       if (!profile) throw new Error('Applicant not found.');
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || !isForeignersUrl(tab.url || tab.pendingUrl)) {
+        throw new Error('Open the official foreigners e-Visa application page first.');
+      }
       // Await this write to avoid sending a stale YAML profile to the content script.
       await saveProfileYaml(withEntryDate(profile.yaml, entryDate), selectedId);
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) throw new Error('No active tab.');
       await connectToTab(tab.id);
       const response = (await chrome.tabs.sendMessage(tab.id, {
         action: 'fillForm', profileId: selectedId, entryDate,
@@ -203,8 +222,24 @@ export function PopupApp() {
       <Card className="border-0 shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle className="flex items-center gap-2 text-lg"><Users className="size-5" />Vietnam e-Visa Autofill</CardTitle>
-          <CardDescription className={statusClass}>{status}</CardDescription>
+          {pageState === 'inside' ? (
+            <CardDescription className={statusClass}>{status}</CardDescription>
+          ) : null}
         </CardHeader>
+        {pageState === 'checking' ? (
+          <CardContent className="px-0 pb-0">
+            <p className="text-sm text-muted-foreground">Checking the active tab…</p>
+          </CardContent>
+        ) : pageState === 'outside' ? (
+          <CardContent className="space-y-4 px-0 pb-0">
+            <p className="text-sm text-muted-foreground">
+              To use Vietnam e-Visa Autofill, first visit the official e-Visa website.
+            </p>
+            <Button className="w-full" onClick={() => void chrome.tabs.create({ url: 'https://evisa.gov.vn/' })}>
+              <ExternalLink />Open e-Visa website
+            </Button>
+          </CardContent>
+        ) : (
         <CardContent className="space-y-4 px-0 pb-0">
           <div className="space-y-2">
             <Label htmlFor="applicant">Applicant</Label>
@@ -244,6 +279,7 @@ export function PopupApp() {
             </button>
           </p>
         </CardContent>
+        )}
       </Card>
     </div>
   );

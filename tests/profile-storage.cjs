@@ -53,7 +53,9 @@ global.fetch = async (url) => ({
 });
 global.crypto = require('node:crypto').webcrypto;
 
+const { isEvisaSiteUrl, isForeignersUrl } = require('../src/lib/shared.ts');
 const { parseYaml, stringifyYaml } = require('../src/lib/yaml.ts');
+const { LLM_PROFILE_PROMPT, PROFILE_SETUP_STEPS } = require('../src/lib/llm-prompt.ts');
 const {
   enableOrUnlockSync, lockSync, syncNow, getSyncState, mergeSnapshots,
 } = require('../src/lib/profile-sync.ts');
@@ -64,6 +66,50 @@ const {
 } = require('../src/lib/profile-storage.ts');
 
 async function run() {
+  // Applicant controls must only show on the official secure e-Visa origin.
+  const officialUrls = ['https://evisa.gov.vn/', 'https://evisa.gov.vn/e-visa/foreigners', 'https://evisa.gov.vn/e-visa/foreigners?lang=en'];
+  for (const url of officialUrls) assert.equal(isEvisaSiteUrl(url), true, url);
+  const outsideUrls = ['https://example.com/', 'https://evisa.gov.vn.evil.example/', 'https://fake-evisa.gov.vn/', 'http://evisa.gov.vn/', 'chrome://extensions', 'about:blank', undefined, 'not a url'];
+  for (const url of outsideUrls) {
+    assert.equal(isEvisaSiteUrl(url), false, String(url));
+    assert.equal(isForeignersUrl(url), false, String(url));
+  }
+  assert.equal(isForeignersUrl('https://evisa.gov.vn/'), false);
+  assert.equal(isForeignersUrl('https://evisa.gov.vn/e-visa/foreigners'), true);
+  assert.equal(isForeignersUrl('https://evisa.gov.vn/e-visa/foreigners/new'), true);
+  assert.equal(isForeignersUrl('https://evisa.gov.vn/e-visa/foreigners-fake'), false);
+  console.log('Official e-Visa page detection and lookalike-domain rejection: PASS');
+  // Keep the copyable LLM prompt in sync with the actual YAML import schema.
+  const example = LLM_PROFILE_PROMPT.match(/\x60\x60\x60yaml\n([\s\S]*?)\n\x60\x60\x60/);
+  assert.ok(example, 'Prompt includes a copyable YAML schema');
+  const schema = parseYaml(example[1]);
+  const template = parseYaml(fs.readFileSync(path.join(__dirname, '..', 'public/profile.form.yaml'), 'utf8'));
+  for (const [section, values] of Object.entries(template)) {
+    assert.ok(Object.hasOwn(schema, section), 'Prompt missing section ' + section);
+    if (values && typeof values === 'object' && !Array.isArray(values)) {
+      for (const key of Object.keys(values)) {
+        assert.ok(Object.hasOwn(schema[section], key), 'Prompt missing field ' + section + '.' + key);
+      }
+    }
+  }
+  assert.equal(schema.applicant_metadata.visa_completed, false);
+  assert.equal(schema.applicant_metadata.label, '');
+  const twoApplicants = ['TEST ONE', 'TEST TWO'].map((name) => (
+    stringifyYaml({ ...schema,
+      applicant_metadata: { label: name, visa_completed: false },
+      personal_information: { ...schema.personal_information, given_name: name },
+      passport_information: { ...schema.passport_information, number: 'PASSPORT-' + name },
+    })
+  )).map((text) => '---\n' + text).join('');
+  const importedFromPrompt = parseProfilesYaml(twoApplicants);
+  assert.equal(importedFromPrompt.length, 2, 'Multi-profile prompt output can be imported');
+  assert.notEqual(importedFromPrompt[0].passport_information.number, importedFromPrompt[1].passport_information.number);
+  assert.equal(importedFromPrompt[1].applicant_metadata.visa_completed, false);
+  assert.ok(LLM_PROFILE_PROMPT.includes('ONE question at a time') ||
+            LLM_PROFILE_PROMPT.includes('ONE question per message'));
+  assert.ok(LLM_PROFILE_PROMPT.includes('shared') && LLM_PROFILE_PROMPT.includes('BEFORE') === false);
+  assert.ok(PROFILE_SETUP_STEPS.some((step) => step.body.includes('Sync tab')));
+  console.log('LLM prompt matches profile schema, produces importable multi-person YAML, and documents Sync tab: PASS');
   const sample = {
     personal_information: { surname: 'TEST', given_name: 'ONE', date_of_birth: '12/05/1988', sex: 'Female' },
     passport_information: { number: 'A0001234', date_of_issue: '12/03/2023' },

@@ -630,6 +630,7 @@ export function EditorApp() {
             <TabsTrigger value="applicants">Applicant profiles</TabsTrigger>
             <TabsTrigger value="instructions">Instructions</TabsTrigger>
             <TabsTrigger value="llm-prompt">LLM Q&amp;A Prompt</TabsTrigger>
+            <TabsTrigger value="sync">Sync</TabsTrigger>
           </TabsList>
           <TabsContent value="applicants" className="space-y-5">
         <Card>
@@ -709,54 +710,6 @@ export function EditorApp() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Encrypted Chrome Sync</CardTitle>
-            <CardDescription>
-              Optional sync between Chrome installations using the same Google account,
-              Chrome Sync enabled, and the same extension ID.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Visa and passport details are encrypted with your own password before
-              entering Chrome Sync. Your password is not saved. Unlock once per Chrome session.
-              The existing local profiles remain on this computer.
-            </p>
-            {syncUnlocked ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">Sync unlocked — changes sync automatically.</span>
-                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void refreshSync()}>
-                  Sync now
-                </Button>
-                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void doLockSync()}>
-                  Lock
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-56 flex-1 space-y-1">
-                  <Label htmlFor="chrome-sync-password">Sync password (at least 12 characters)</Label>
-                  <Input id="chrome-sync-password" type="password"
-                    autoComplete="new-password" value={syncPassword}
-                    onChange={(event) => setSyncPassword(event.target.value)}
-                    placeholder={syncEnabled ? 'Enter your existing sync password' : 'Create a new sync password'} />
-                </div>
-                <Button disabled={syncBusy || syncPassword.length < 12}
-                  onClick={() => void unlockSync()}>
-                  {syncBusy ? 'Connecting…' : syncEnabled ? 'Unlock and sync' : 'Enable encrypted sync'}
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Important: unpacked extensions can have different IDs depending on the
-              installation path. Check the extension ID in chrome://extensions on both browsers.
-              Different IDs cannot share Chrome Sync data. No server or password recovery is provided.
-              Keep an exported YAML backup.
-            </p>
-            {syncStatus ? <p role="status" className="text-sm">{syncStatus}</p> : null}
-          </CardContent>
-        </Card>
 
         {status && <p role="status" className={error ? 'text-sm text-destructive' : 'text-sm text-emerald-700 dark:text-emerald-400'}>{status}</p>}
         {loading ? <p>Loading applicant profiles…</p> : selectedProfile ? (
@@ -878,6 +831,57 @@ export function EditorApp() {
                 </pre>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="sync" className="space-y-5">
+        <Card>
+          <CardHeader>
+            <CardTitle>Encrypted Chrome Sync</CardTitle>
+            <CardDescription>
+              Optional sync between Chrome installations using the same Google account,
+              Chrome Sync enabled, and the same extension ID.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Visa and passport details are encrypted with your own password before
+              entering Chrome Sync. Your password is not saved. Unlock once per Chrome session.
+              The existing local profiles remain on this computer.
+            </p>
+            {syncUnlocked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Sync unlocked — changes sync automatically.</span>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void refreshSync()}>
+                  Sync now
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncBusy} onClick={() => void doLockSync()}>
+                  Lock
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-56 flex-1 space-y-1">
+                  <Label htmlFor="chrome-sync-password">Sync password (at least 12 characters)</Label>
+                  <Input id="chrome-sync-password" type="password"
+                    autoComplete="new-password" value={syncPassword}
+                    onChange={(event) => setSyncPassword(event.target.value)}
+                    placeholder={syncEnabled ? 'Enter your existing sync password' : 'Create a new sync password'} />
+                </div>
+                <Button disabled={syncBusy || syncPassword.length < 12}
+                  onClick={() => void unlockSync()}>
+                  {syncBusy ? 'Connecting…' : syncEnabled ? 'Unlock and sync' : 'Enable encrypted sync'}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Important: unpacked extensions can have different IDs depending on the
+              installation path. Check the extension ID in chrome://extensions on both browsers.
+              Different IDs cannot share Chrome Sync data. No server or password recovery is provided.
+              Keep an exported YAML backup.
+            </p>
+            {syncStatus ? <p role="status" className="text-sm">{syncStatus}</p> : null}
+          </CardContent>
+        </Card>
           </TabsContent>
         </Tabs>
       </div>
