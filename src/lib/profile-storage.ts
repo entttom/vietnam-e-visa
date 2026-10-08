@@ -129,9 +129,11 @@ export async function deleteProfile(profileId: string): Promise<void> {
   if (remaining.length === 0) throw new Error('Keep at least one applicant. Create another before deleting this one.');
   const result = await chrome.storage.local.get(STORAGE_KEY_DELETED_PROFILES);
   const deleted = (result[STORAGE_KEY_DELETED_PROFILES] || {}) as Record<string, number>;
+  const deletedProfile = profiles.find((profile) => profile.id === profileId)!;
+  const deletedAt = Math.max(Date.now(), (deletedProfile.updatedAt ?? 0) + 1);
   await chrome.storage.local.set({
     [STORAGE_KEY_PROFILES]: remaining,
-    [STORAGE_KEY_DELETED_PROFILES]: { ...deleted, [profileId]: Date.now() },
+    [STORAGE_KEY_DELETED_PROFILES]: { ...deleted, [profileId]: deletedAt },
     [STORAGE_KEY_ACTIVE_PROFILE]: remaining[0].id,
   });
 }
