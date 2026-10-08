@@ -115,6 +115,7 @@ export async function duplicateProfile(sourceYaml: string): Promise<StoredProfil
   passport.other_passports = [];
   data.personal_information = personal;
   data.passport_information = passport;
+  data.accompanying_children = []; // Never reuse children across separate visa applications.
   return createProfile(stringifyYaml(data), 'New applicant (copy)');
 }
 
