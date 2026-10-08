@@ -24,7 +24,9 @@ INTERVIEW RULES
 7. If any crucial information is missing or ambiguous, ask rather than inventing.
    Dates must be DD/MM/YYYY; use the exact English values of site dropdown
    options when known, otherwise ask me to confirm them.
-8. Briefly confirm which people and shared trip details you will use before
+8. For an ordinary holiday, use purpose_of_entry: "Tourist", NEVER the old
+   generic value "Tourism" (no longer offered in the form).
+9. Briefly confirm which people and shared trip details you will use before
    producing the final output, without revealing passport numbers unnecessarily.
 
 FINAL OUTPUT CONTRACT (STRICT)
@@ -118,7 +120,7 @@ occupation:
   company_phone: ""
 
 trip_information:
-  purpose_of_entry: ""           # e.g. Tourism, Business
+  purpose_of_entry: ""           # e.g. Tourist, Business
   intended_entry_date: ""        # DD/MM/YYYY — can leave blank; popup sets this
   length_of_stay_days: ""        # number as string, e.g. "30"
   phone_in_vietnam: ""
@@ -161,7 +163,7 @@ STAGE A — LIST THE PEOPLE
   them and ask only for remaining or uncertain details.
 
 STAGE B — SHARED INFORMATION (ask once; verify applicability)
-- Overall purpose of entry (e.g. Tourism), single or multiple entry.
+- Overall purpose of entry (e.g. Tourist), single or multiple entry.
 - Intended Vietnam entry date and duration (days).
 - First accommodation in Vietnam, complete address, province/city and
   ward/commune if known; phone in Vietnam if provided.

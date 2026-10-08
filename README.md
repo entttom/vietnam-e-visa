@@ -207,6 +207,15 @@ The photo uploads and final submission are deliberately not automated.
 
 ### Dropdown labels
 
+**Purpose of entry:** For holidays, choose `Tourist`. The older exact value
+`Tourism` is no longer offered in the official form and is excluded from the
+bundled list, including when `pnpm fetch-options` regenerates it. Existing
+profiles still containing `Tourism` are automatically interpreted as `Tourist`
+when filling the application. Opening such a profile in Manage applicants
+also offers the corrected value as an unsaved change; click **Save applicant**
+to persist the updated YAML.
+
+
 The extension loads official form choices from `data/select-options.yaml`. To refresh the
 reference data locally, run:
 

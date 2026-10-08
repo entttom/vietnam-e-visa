@@ -17,6 +17,13 @@ export function formatVisaRange(entryIso: string, stayDays: number): string {
 }
 
 /** Only the official HTTPS Vietnam e-Visa origin may reveal stored applicant data. */
+/** Map the historical leisure entry reason to the currently offered label. */
+export function normalizePurposeOfEntry(value: unknown): unknown {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'tourism'
+    ? 'Tourist'
+    : value;
+}
+
 export function isEvisaSiteUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
