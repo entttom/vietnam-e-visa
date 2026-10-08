@@ -88,8 +88,8 @@ Source layout:
    visit-history, nationality and accompanying-child sections. Click **Save applicant**.
 4. Select the next applicant and repeat. Each person's data is stored in a separate YAML document
    within Chrome's local extension storage.
-5. Optionally open **Advanced: YAML import / export** to import a profile previously generated
-   by ChatGPT, or export a backup for the selected person.
+5. **Import YAML** at the top of **Applicant profiles** accepts single-person YAML files, multiple selected YAML files, or a combined YAML backup. It **adds** profiles without overwriting existing people.
+6. **Export all** saves every applicant (including each completion status) into one YAML file. The advanced section still supports single-person YAML export and importing text into the currently selected person.
 
 **Existing installations:** The previous single `profileYaml` entry is automatically migrated
 into the new list of applicants the first time this version loads. The original single-profile
@@ -98,6 +98,43 @@ storage entry remains available as a local backup.
 **Privacy:** All applicant records stay in your local Chrome extension storage. Profiles,
 passport numbers, names and birth dates must **never** be committed to this public repository.
 Exported YAML files contain personal data; handle backups carefully.
+
+### Multiple applicant YAML backup format
+
+Use the YAML standard document separator `---` on its **own line**, not another occurrence of `personal_information:` to detect a person:
+
+```yaml
+---
+applicant_metadata:
+  label: "Applicant A"
+  visa_completed: true
+personal_information:
+  surname: "EXAMPLE"
+  given_name: "PERSON A"
+passport_information:
+  number: "A12345678"
+---
+applicant_metadata:
+  label: "Applicant B"
+  visa_completed: false
+personal_information:
+  surname: "EXAMPLE"
+  given_name: "PERSON B"
+passport_information:
+  number: "B12345678"
+```
+
+Each YAML document is an **independent person**, using the usual complete e-Visa schema.
+The example above is illustrative (other fields are omitted). The import supports
+individual profiles as before, and combined multi-document YAML files.
+All documents are validated before adding anyone; importing never replaces
+an existing applicant. A repeated import intentionally creates additional copies.
+The `applicant_metadata.visa_completed` flag defaults to `false` in older profiles
+and is also set to `false` when duplicating an applicant.
+
+The popup checkbox **Visa application done** is a user-maintained checklist,
+not proof of submission, approval, or visa issuance. The checkbox can be reset.
+The actual Vietnamese e-Visa website is not updated by this setting.
 
 ### Travel date
 
