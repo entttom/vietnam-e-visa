@@ -80,7 +80,7 @@ Source layout:
 
 ## Manage multiple applicants
 
-The options page has three tabs: **Applicant profiles**, **Instructions**, and **LLM Q&A Prompt**. The original prompt and setup instructions are available again. The **Advanced** section under Applicant profiles also includes a syntax-highlighted raw YAML editor, Load example, and Reset template.
+The options page has four tabs: **Applicant profiles**, **Instructions**, **LLM Q&A Prompt**, and **Sync**. The original prompt and setup instructions are available again. The **Advanced** section under Applicant profiles also includes a syntax-highlighted raw YAML editor, Load example, and Reset template.
 
 
 1. Open **Manage applicants** from the Chrome extension popup (or open the extension Options).
@@ -104,7 +104,7 @@ Exported YAML files contain personal data; handle backups carefully.
 
 ### Optional encrypted Chrome Sync
 
-In **Manage applicants → Encrypted Chrome Sync**, create a sync password of at least
+In **Manage applicants → Sync**, create a sync password of at least
 12 characters. Only after this opt-in, the extension uploads an **AES-256-GCM encrypted**
 snapshot of the applicant list and deletion markers to `chrome.storage.sync`.
 The encryption key is derived using PBKDF2-SHA256 and stored only in Chrome's
@@ -130,6 +130,12 @@ Chrome Sync is limited to about **100 KB total** with **8 KB per key**; encrypte
 snapshots are split into chunks. Errors are shown if the limit is reached.
 No separate server or password recovery is provided. This feature does not
 synchronize across unrelated extension IDs or different Google accounts.
+
+The **LLM Q&A Prompt** is now designed for families/groups: it asks shared travel
+information only once, then asks each traveller's passport and identity fields
+individually, one question at a time. Its output repeats the complete YAML schema
+for every person, uses `applicant_metadata.visa_completed: false`, and separates
+people using standalone `---` lines ready for **Import YAML → Paste YAML**.
 
 ### Multiple applicant YAML backup format
 
@@ -177,6 +183,16 @@ The date is stored in each person's YAML as `trip_information.intended_entry_dat
 - Reads that applicant's **Intended entry date** directly from YAML.
 - Allows changing the date with a calendar control and saves the change back to that person's YAML.
 - Displays the computed visa validity range from that person's `length_of_stay_days`.
+
+### Popup behaviour outside the official site
+
+When the active Chrome tab is **not** on `https://evisa.gov.vn/`, the
+extension popup hides the applicant dropdown, dates and autofill controls. It
+shows only a prompt to visit the official site and an **Open e-Visa website**
+button that opens `https://evisa.gov.vn/` in a new tab. Applicant data is not
+loaded in the popup on other websites. On the official site, applicants can
+be selected; the **Fill Form** button only becomes available on the
+foreigners application page.
 
 ### Fill a visa application
 
