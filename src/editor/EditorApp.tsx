@@ -306,7 +306,10 @@ export function EditorApp() {
       const next = structuredClone(previous);
       setAt(next, 'trip_information.intended_entry_date', toVisaDate(value));
       const days = Number(getAt(next, 'trip_information.length_of_stay_days'));
-      if (value && Number.isInteger(days) && days > 0) {
+      if (!value) {
+        setAt(next, 'requested_information.valid_from', '');
+        setAt(next, 'requested_information.valid_to', '');
+      } else if (Number.isInteger(days) && days > 0) {
         const date = new Date(value + 'T00:00:00Z');
         date.setUTCDate(date.getUTCDate() + days - 1);
         setAt(next, 'requested_information.valid_from', toVisaDate(value));
@@ -322,7 +325,9 @@ export function EditorApp() {
       setAt(next, 'trip_information.length_of_stay_days', value);
       const entry = toIso(getAt(next, 'trip_information.intended_entry_date'));
       const days = Number(value);
-      if (entry && Number.isInteger(days) && days > 0) {
+      if (!value || !Number.isInteger(days) || days <= 0) {
+        setAt(next, 'requested_information.valid_to', '');
+      } else if (entry) {
         const date = new Date(entry + 'T00:00:00Z');
         date.setUTCDate(date.getUTCDate() + days - 1);
         setAt(next, 'requested_information.valid_from', toVisaDate(entry));
