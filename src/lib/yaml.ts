@@ -132,7 +132,7 @@ export function stringifyYaml(value: YamlMap): string {
           lines.push(prefix + key + ':');
           for (const element of child) {
             if (element && typeof element === 'object' && !Array.isArray(element)) {
-              const nested = entries(element as YamlMap, indent + 2);
+              const nested = entries(element as YamlMap, indent + 4);
               if (nested.length) {
                 lines.push(prefix + '  - ' + nested[0].trimStart());
                 lines.push(...nested.slice(1));
