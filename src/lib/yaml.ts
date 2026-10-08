@@ -8,7 +8,7 @@ function stripInlineComment(raw: string): string {
   let escaped = false;
   for (let i = 0; i < raw.length; i += 1) {
     const ch = raw[i];
-    if (ch === '\\\\' && inDouble && !escaped) { escaped = true; continue; }
+    if (ch === '\\' && inDouble && !escaped) { escaped = true; continue; }
     if (escaped) { escaped = false; continue; }
     if (ch === '"' && !inSingle) inDouble = !inDouble;
     if (ch === "'" && !inDouble) inSingle = !inSingle;
