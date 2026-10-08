@@ -215,26 +215,26 @@ export function exportProfileYaml(profile: StoredProfile): string {
  */
 export function exportProfilesYaml(profiles: StoredProfile[]): string {
   if (!profiles.length) throw new Error('No applicant profiles to export.');
-  return profiles.map((profile) => '---\\n' + exportProfileYaml(profile).trimEnd() + '\\n').join('');
+  return profiles.map((profile) => '---\n' + exportProfileYaml(profile).trimEnd() + '\n').join('');
 }
 
 function splitProfileDocuments(text: string): string[] {
-  const source = text.replace(/^\\uFEFF/, '').replace(/\\r\\n?/g, '\\n');
+  const source = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const docs: string[] = [];
   let current: string[] = [];
 
   function commit() {
-    const contents = current.join('\\n').trim();
-    if (contents && contents.split('\\n').some((line) => line.trim() && !line.trim().startsWith('#'))) {
+    const contents = current.join('\n').trim();
+    if (contents && contents.split('\n').some((line) => line.trim() && !line.trim().startsWith('#'))) {
       docs.push(contents);
     }
     current = [];
   }
 
-  for (const line of source.split('\\n')) {
-    if (/^---(?:[ \\t]*#.*)?[ \\t]*$/.test(line)) {
+  for (const line of source.split('\n')) {
+    if (/^---(?:[ \t]*#.*)?[ \t]*$/.test(line)) {
       commit();
-    } else if (/^\\.\\.\\.(?:[ \\t]*#.*)?[ \\t]*$/.test(line)) {
+    } else if (/^\.\.\.(?:[ \t]*#.*)?[ \t]*$/.test(line)) {
       commit();
     } else {
       current.push(line);
