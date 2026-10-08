@@ -108,8 +108,7 @@ function placeholder(profile: StoredProfile): boolean {
   if (profile.label !== 'Applicant 1') return false;
   try {
     const yaml = profile.yaml;
-    return /^\s*(?:#.*)?$/m.test('') &&
-      !/^\s*(?:surname|given_name|number):\s*"[^"]+"/m.test(yaml);
+    return !/^\s*(?:surname|given_name|number):\s*"[^"]+"/m.test(yaml);
   } catch {
     return false;
   }
@@ -136,7 +135,8 @@ export function mergeSnapshots(local: Snapshot, remote: Snapshot): Snapshot {
     else if ((item.updatedAt ?? 0) === (old.updatedAt ?? 0) &&
              (item.yaml !== old.yaml || item.label !== old.label)) {
       // Two copies modified at the same revision: preserve both, rather than discard local data.
-      profiles.set(crypto.randomUUID(), { ...item, id: crypto.randomUUID(), updatedAt: Date.now() });
+      const conflictId = crypto.randomUUID();
+      profiles.set(conflictId, { ...item, id: conflictId, updatedAt: Date.now() });
     }
   }
   const alive = [...profiles.values()].filter((p) => (p.updatedAt ?? 0) > (deleted[p.id] || 0));
