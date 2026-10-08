@@ -35,6 +35,7 @@ const { parseYaml, stringifyYaml } = require('../src/lib/yaml.ts');
 const {
   loadProfiles, saveProfileYaml, loadProfileYaml, createProfile, duplicateProfile,
   getProfileEntryDate, withEntryDate, parseStayDaysFromYaml, deleteProfile, setActiveProfileId,
+  isVisaCompleted, withVisaCompleted, exportProfileYaml, exportProfilesYaml, parseProfilesYaml, importProfilesYaml,
 } = require('../src/lib/profile-storage.ts');
 
 async function run() {
@@ -87,6 +88,45 @@ async function run() {
   await deleteProfile(second.id);
   assert.equal((await loadProfiles()).length, 2);
 
-  console.log('Profile migration, YAML round trip, duplicate, isolation and travel dates: PASS');
+  assert.equal(isVisaCompleted(yaml), false, 'Old profiles without a flag default to not done');
+  const done = withVisaCompleted(yaml, true);
+  assert.equal(isVisaCompleted(done), true);
+  assert.equal(parseYaml(done).passport_information.number, 'A0001234');
+  assert.equal(isVisaCompleted(withVisaCompleted(done, false)), false);
+  await saveProfileYaml(done, originalId);
+
+  const freshDuplicate = await duplicateProfile(done);
+  assert.equal(isVisaCompleted(freshDuplicate.yaml), false, 'Duplicating a completed visa resets its checklist');
+  await deleteProfile(freshDuplicate.id);
+
+  const backup = exportProfilesYaml(await loadProfiles());
+  assert.equal((backup.match(/^---$/gm) || []).length, 2, 'One YAML document per applicant');
+  assert.equal(parseProfilesYaml(backup).length, 2);
+  assert.equal(isVisaCompleted(exportProfileYaml({ id: 'test', label: 'Saved label', yaml: done })), true);
+  const backupContents = parseProfilesYaml(backup);
+  assert.equal(backupContents[0].applicant_metadata.visa_completed, true);
+  assert.equal(backupContents[0].applicant_metadata.label, 'Applicant 1');
+
+  const importResult = await importProfilesYaml(backup);
+  assert.equal(importResult.length, 2);
+  assert.equal((await loadProfiles()).length, 4, 'Import appends and preserves existing profiles');
+  assert.equal(isVisaCompleted(importResult[0].yaml), true, 'Completion survives export/import');
+  assert.equal((await loadProfiles())[0].id, originalId, 'Old profile not overwritten');
+  assert.equal(importResult[0].label, 'Applicant 1', 'Original internal label survives backup');
+
+  // Neither a nested key nor a quoted substring is a document boundary.
+  const extra = { ...sample, occupation: { occupation_info: 'Text mentioning personal_information: in a value' } };
+  const customYaml = stringifyYaml(extra);
+  const mixed = customYaml + '\n---\n' + stringifyYaml({ ...extra, personal_information: { surname: 'SECOND' }, applicant_metadata: { visa_completed: false } });
+  assert.equal(parseProfilesYaml(mixed).length, 2);
+
+  const previous = (await loadProfiles()).length;
+  await assert.rejects(
+    () => importProfilesYaml(backup + '\n---\npassport_information:\n  number: "MISSING_PERSONAL"'),
+    /Applicant 3/,
+  );
+  assert.equal((await loadProfiles()).length, previous, 'Invalid batch leaves storage unchanged');
+  assert.equal(parseProfilesYaml('\uFEFF' + backup).length, 2, 'UTF-8 BOM is supported');
+  console.log('Profile migration, YAML multi-document import/export, atomic rollback and completion flags: PASS');
 }
 run().catch((err) => { console.error(err); process.exitCode = 1; });
