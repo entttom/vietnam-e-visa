@@ -30,6 +30,7 @@
     "dev": "vite",
     "prebuild": "node scripts/optimize-icons.js",
     "build": "vite build",
+    "test": "node tests/profile-storage.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "package": "pnpm build && node scripts/package-release.js",
