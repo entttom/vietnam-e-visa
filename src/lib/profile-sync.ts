@@ -31,14 +31,20 @@ function fromB64(value: string): Uint8Array {
   return Uint8Array.from(bytes, (char) => char.charCodeAt(0));
 }
 
+function bytesBuffer(value: Uint8Array): ArrayBuffer {
+  const result = new ArrayBuffer(value.byteLength);
+  new Uint8Array(result).set(value);
+  return result;
+}
+
 function freshBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length));
 }
 
 async function deriveKey(password: string, salt: string): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const material = await crypto.subtle.importKey('raw', bytesBuffer(new TextEncoder().encode(password)), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: fromB64(salt), iterations: ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: bytesBuffer(fromB64(salt)), iterations: ITERATIONS, hash: 'SHA-256' },
     material, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
   );
 }
@@ -52,7 +58,7 @@ async function saveKey(key: CryptoKey): Promise<void> {
 async function activeKey(): Promise<CryptoKey | null> {
   const saved = await chrome.storage.session.get(SESSION_KEY);
   if (typeof saved[SESSION_KEY] !== 'string') return null;
-  return crypto.subtle.importKey('raw', fromB64(saved[SESSION_KEY]), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', bytesBuffer(fromB64(saved[SESSION_KEY])), 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
 async function readHead(): Promise<SyncHead | null> {
@@ -79,8 +85,8 @@ async function readRemote(key: CryptoKey, head: SyncHead): Promise<Snapshot> {
   let plain: ArrayBuffer;
   try {
     plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: fromB64(head.nonce) },
-      key, ciphertext
+      { name: 'AES-GCM', iv: bytesBuffer(fromB64(head.nonce)) },
+      key, bytesBuffer(ciphertext)
     );
   } catch {
     throw new Error('Incorrect sync password, or the encrypted sync data is damaged.');
@@ -146,7 +152,7 @@ export function mergeSnapshots(local: Snapshot, remote: Snapshot): Snapshot {
 async function publish(key: CryptoKey, salt: string, snapshot: Snapshot, old: SyncHead | null) {
   const iv = freshBytes(12);
   const bytes = new TextEncoder().encode(JSON.stringify(canonical(snapshot)));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: bytesBuffer(iv) }, key, bytesBuffer(bytes));
   const encoded = toB64(new Uint8Array(encrypted));
   const parts = encoded.match(new RegExp('.{1,' + PART_SIZE + '}', 'g')) || [];
   if (!parts.length || parts.length > MAX_PARTS)
