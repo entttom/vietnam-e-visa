@@ -1,6 +1,6 @@
 # Vietnam e-Visa Autofill
 
-Local Chrome extension that fills the Vietnam e-Visa application form at `https://evisa.gov.vn/e-visa/foreigners` from a YAML profile.
+Local Chrome extension that fills individual Vietnam e-Visa applications for multiple travellers at `https://evisa.gov.vn/e-visa/foreigners` from locally saved YAML-backed applicant profiles.
 
 Built with **TypeScript**, **React**, **Tailwind CSS**, and **shadcn/ui**.  
 Licensed under the [MIT License](LICENSE) — free to use, modify, and share.
@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/b2c6c722-96b1-4644-b7ee-b675ce845e49
 
 The easiest way to install without building from source:
 
-1. Open the [Releases](https://github.com/gssisaac/vietnam-e-visa/releases) page
+1. Open the [Releases](https://github.com/entttom/vietnam-e-visa/releases) page
 2. Download the latest **`vietnam-e-visa-v*.zip`** asset
 3. Unzip the file — you should see `manifest.json`, `icons/`, `assets/`, etc. at the top level
 4. Open Chrome → `chrome://extensions`
@@ -30,7 +30,7 @@ To update later, download the new release zip, remove the old unpacked folder, a
 ## Install from source (developers)
 
 ```bash
-git clone https://github.com/gssisaac/vietnam-e-visa.git
+git clone https://github.com/entttom/vietnam-e-visa.git
 cd vietnam-e-visa
 pnpm install
 pnpm build
@@ -78,56 +78,59 @@ Source layout:
 | `src/lib/` | YAML parser, form filler, profile storage |
 | `public/` | Static assets (`profile.form.yaml`, icons, demo video) |
 
-## Configure your profile
+## Manage multiple applicants
 
-### Option A — Profile editor (recommended)
+1. Open **Manage applicants** from the Chrome extension popup (or open the extension Options).
+2. Click **New person** to create an empty form, or **Duplicate** to copy the current applicant.
+   Duplicating retains the shared itinerary, accommodation, address and contact details but clears
+   the given name, date of birth, sex, ID card and passport details.
+3. Enter the person's data using the grouped **form fields**, including repeatable passport,
+   visit-history, nationality and accompanying-child sections. Click **Save applicant**.
+4. Select the next applicant and repeat. Each person's data is stored in a separate YAML document
+   within Chrome's local extension storage.
+5. Optionally open **Advanced: YAML import / export** to import a profile previously generated
+   by ChatGPT, or export a backup for the selected person.
 
-1. Click the extension icon → **Edit profile**, or right-click the extension → **Options**
-2. Edit YAML in the **Editor** tab
-3. Click **Save** (stored in extension storage)
+**Existing installations:** The previous single `profileYaml` entry is automatically migrated
+into the new list of applicants the first time this version loads. The original single-profile
+storage entry remains available as a local backup.
 
-### Option B — LLM Q&A prompt
+**Privacy:** All applicant records stay in your local Chrome extension storage. Profiles,
+passport numbers, names and birth dates must **never** be committed to this public repository.
+Exported YAML files contain personal data; handle backups carefully.
 
-1. Open the profile editor → **LLM Q&A Prompt** tab
-2. Copy the prompt into ChatGPT, Claude, or similar
-3. Answer one question at a time; paste the generated YAML into the editor and save
+### Travel date
 
-### Option C — Manual YAML file
+The date is stored in each person's YAML as `trip_information.intended_entry_date`
+(DD/MM/YYYY), alongside the corresponding requested visa validity. The popup now:
 
-- Template: [`profile.form.yaml`](profile.form.yaml)
-- Example: [`profile.example.yaml`](profile.example.yaml)
-- Use **Download** in the editor to export `profile.yaml` for backup
+- Offers an **Applicant** dropdown.
+- Reads that applicant's **Intended entry date** directly from YAML.
+- Allows changing the date with a calendar control and saves the change back to that person's YAML.
+- Displays the computed visa validity range from that person's `length_of_stay_days`.
 
-Dropdown values must match **exact English labels** from the site. Refresh the reference list:
+### Fill a visa application
+
+1. Log in to [evisa.gov.vn](https://evisa.gov.vn) and open the foreigners application form.
+2. Dismiss the instruction modal manually and upload passport/portrait photos yourself.
+3. Open the popup, choose the **correct applicant**, and check the entry date.
+4. Click **Fill Form**. The extension fills only the selected person's details.
+5. Carefully review every field and complete **Next** / final submission manually.
+6. Start a new application for the next person; repeat from step 3.
+
+The photo uploads and final submission are deliberately not automated.
+
+### Dropdown labels
+
+The extension loads official form choices from `data/select-options.yaml`. To refresh the
+reference data locally, run:
 
 ```bash
 pnpm run fetch-options
 ```
 
-This updates [`data/select-options.yaml`](data/select-options.yaml) (and the copy in `public/data/`).
-
-Common examples (copy exactly):
-
-| Field | Example value |
-|-------|---------------|
-| nationality | `Korea (South)` |
-| purpose_of_entry | `Tourism` |
-| province_city | `HO CHI MINH City` |
-| ward_commune | `BEN THANH WARD` |
-| border_gate_entry | `Tan Son Nhat Int Airport (Ho Chi Minh City)` |
-| passport type | `Ordinary passport` |
-
-Dates use **DD/MM/YYYY** format.
-
-## Usage
-
-1. Log in to [evisa.gov.vn](https://evisa.gov.vn) and open the foreigners application form
-2. Dismiss the instruction modal manually (first visit only)
-3. Upload portrait and passport photos manually
-4. Click the extension icon → pick **Intended entry date** → **Fill Form**
-5. Review all fields, upload any remaining items, then click **Next** yourself
-
-The popup entry date overrides `intended_entry_date`, `valid_from`, and `valid_to` (`valid_to` = entry + `length_of_stay_days` from profile).
+For older YAML files, the format still follows `profile.form.yaml`; dates are DD/MM/YYYY.
+If an official dropdown has changed, refresh the options and rebuild the extension.
 
 ## What is filled
 
