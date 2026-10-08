@@ -5,8 +5,11 @@ type StackFrame = { indent: number; value: YamlMap | YamlList; type: 'map' | 'li
 function stripInlineComment(raw: string): string {
   let inSingle = false;
   let inDouble = false;
+  let escaped = false;
   for (let i = 0; i < raw.length; i += 1) {
     const ch = raw[i];
+    if (ch === '\\\\' && inDouble && !escaped) { escaped = true; continue; }
+    if (escaped) { escaped = false; continue; }
     if (ch === '"' && !inSingle) inDouble = !inDouble;
     if (ch === "'" && !inDouble) inSingle = !inSingle;
     if (ch === '#' && !inSingle && !inDouble) {
@@ -71,7 +74,7 @@ export function parseYaml(text: string): YamlMap {
         const obj: YamlMap = {};
         (ctx.value as YamlList).push(obj);
         stack.push({ indent, value: obj, type: 'map' });
-      } else if (itemText.includes(':')) {
+      } else if (/^[A-Za-z_][A-Za-z0-9_-]*:/.test(itemText)) {
         const obj = parseKeyValue(itemText);
         (ctx.value as YamlList).push(obj);
         if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
