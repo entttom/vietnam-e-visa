@@ -31,3 +31,5 @@ jobs:
         run: pnpm exec tsc --noEmit
       - name: Build
         run: pnpm build
+      - name: Verify production bundle
+        run: pnpm check:release
